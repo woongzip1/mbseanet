@@ -1,0 +1,9 @@
+_test*.ipynb
+
+ckpts/
+__pycache__/
+wandb/
+
+__model_filmpy
+
+ToDoList.txt
