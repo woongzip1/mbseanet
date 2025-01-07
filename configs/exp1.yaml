@@ -1,5 +1,5 @@
 random_seed: 0b011011
-run_name: "exp1_test"
+run_name: "exp1_test_subbandloss"
 # RVQ
 
 #-----------------------------------------------
@@ -29,7 +29,7 @@ dataset:
   batch_size: 16
   seg_len: 0.9
   num_workers: 8
-  start_index: 5 # num cores
+  start_index: 6 # num cores
  
 #-----------------------------------------------
 #2. Model
@@ -40,10 +40,10 @@ generator:
   in_channels: 64 #FE
   min_dim: 32     #SEANet 56?
   visualize: False
-  c_in: 5
-  c_out: 27
+  c_in: 6
+  c_out: 26
   strides: [1,2,2,2]
-  subband_num: 27
+  subband_num: 26
   fe_weight_path: False
 
 discriminator: 
@@ -77,6 +77,7 @@ loss:
   lambda_adv_loss: 1
   lambda_commitment_loss: 0.25 # only for RVQ models
   lambda_codebook_loss: 1
+  lambda_subband_loss: 15
 
 
 #-----------------------------------------------

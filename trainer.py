@@ -88,14 +88,15 @@ class Trainer:
         self.discriminator.train()
         
         ## analysis
-        nb = self.pqmf_fb.analysis(lr)[:, :self.config['dataset']['start_index'], :]
+        nb = self.pqmf_fb.analysis(lr)[:, :self.config['dataset']['start_index'], :] # num core bands [B,5,T]
         hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
+        target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['dataset']['start_index']:, :] # target subbands [B,27,T] 
             
         x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
         x_hat_full = self.pqmf_fb.synthesis(x_hat, length=hr.shape[-1])  # PQMF Synthesis
 
-        loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss)  
-        
+        loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,
+                                                                                                            hf_estimate=hf_estimate, target_subbands=target_subbands)  
         # Train generator
         self.optim_G.zero_grad()
         loss_G.backward() # mean?
@@ -116,7 +117,9 @@ class Trainer:
             **{f'G_report_{k}': v for k, v in g_loss_report.items()},  
             **{f'D_report_{k}': v for k, v in d_loss_report.items()},  
             'commitment_loss': commitment_loss.item() if commitment_loss else 0,
-            'codebook_loss': codebook_loss.item() if codebook_loss else 0
+            'codebook_loss': codebook_loss.item() if codebook_loss else 0,
+            # subband loss
+            'subband_loss': subband_loss_value.item() if subband_loss_value else 0,
             }
         import pdb
         # pdb.set_trace()
@@ -127,18 +130,21 @@ class Trainer:
     def validate(self, step=None):
         self.generator.eval()
         self.discriminator.eval()
-        result = {key: 0 for key in ['adv_g', 'fm', 'loss_D', 'ms_mel_loss', 'commitment_loss', 'codebook_loss', 'LSD_L', 'LSD_H']}
+        result = {key: 0 for key in ['adv_g', 'fm', 'loss_D', 'ms_mel_loss', 'commitment_loss', 'codebook_loss', 'LSD_L', 'LSD_H', 'subband_loss']}
         
         with torch.no_grad():
             for i, (hr, lr, cond, _, _) in enumerate(tqdm(self.val_loader, desc='Validation')):
                 lr, hr, cond = lr.to(self.device), hr.to(self.device), cond.to(self.device)
                 nb = self.pqmf_fb.analysis(lr)[:, :self.config['dataset']['start_index'], :]
                 hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
+                target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['dataset']['start_index']:, :] # target subbands [B,27,T] 
 
                 x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
                 x_hat_full = self.pqmf_fb.synthesis(x_hat, length=hr.shape[-1])  # PQMF Synthesis
         
-                loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss)
+                loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,
+                                                                                                                            hf_estimate=hf_estimate, target_subbands=target_subbands)  
+
                 loss_D, d_loss_dict, d_loss_report = self.loss_calculator.compute_discriminator_loss(hr, x_hat_full)
 
                 # Compute LSD and LSD_H metrics
@@ -154,6 +160,7 @@ class Trainer:
                 result['loss_D'] += loss_D.item()
                 result['commitment_loss'] += commitment_loss.item() if commitment_loss else 0
                 result['codebook_loss'] += codebook_loss.item() if codebook_loss else 0
+                result['subband_loss'] += subband_loss_value.item() if subband_loss_value else 0
 
                 # Data logging
                 if i in [0,5,13]:  
@@ -220,7 +227,8 @@ class Trainer:
                 # Update tqdm description with specific losses
                 progress_bar.set_postfix({
                     'loss_G': step_result.get('loss_G', 0),
-                    'mel_loss': step_result.get('ms_mel_loss', 0)
+                    'mel_loss': step_result.get('ms_mel_loss', 0),
+                    'subband_loss': step_result.get('subband_loss', 0),
                 })
                 # update scheduler
                 self.scheduler_G.step()
