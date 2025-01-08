@@ -93,7 +93,7 @@ class MBSEANet(nn.Module):
         x = self.conv_out(x)
         
         # pad
-        padval = torch.zeros([x.size(0), x.size(1), pad_len]) # [B,C_out,T]
+        padval = torch.zeros([x.size(0), x.size(1), pad_len]).to(x.device) # [B,C_out,T]
         x = torch.cat((x, padval), dim=-1)
         
         return x
