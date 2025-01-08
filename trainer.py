@@ -40,6 +40,7 @@ class Trainer:
 
         self.hr_logged = False
         self.start_epoch = 1
+        self.start_step = 1
     
     def unified_log(self, log_dict, stage, epoch=None, step=None):
         """
@@ -83,7 +84,7 @@ class Trainer:
             return self.generator(lr, cond)
         return self.generator(lr, cond), 0, 0
 
-    def train_step(self, hr, lr, cond, step=None):
+    def train_step(self, hr, lr, cond, step, pretrain_step=0):
         self.generator.train()
         self.discriminator.train()
         
@@ -102,12 +103,17 @@ class Trainer:
         loss_G.backward() # mean?
         self.optim_G.step()
 
-        # Train discriminator
-        loss_D, d_loss_dict, d_loss_report = self.loss_calculator.compute_discriminator_loss(hr, x_hat_full)
-        self.optim_D.zero_grad()
-        loss_D.backward()
-        self.optim_D.step()
-
+        if step >= pretrain_step: # Train discriminator
+            loss_D, d_loss_dict, d_loss_report = self.loss_calculator.compute_discriminator_loss(hr, x_hat_full)
+            self.optim_D.zero_grad()
+            loss_D.backward()
+            self.optim_D.step()
+        else: # only train generator (p)
+            # print(f"PRETRAIN with {pretrain_step}")
+            loss_D = 0
+            d_loss_dict = {}
+            d_loss_report = {}
+            
         step_result = {
             'loss_G': loss_G.item(),
             'ms_mel_loss': ms_mel_loss_value.item(),
@@ -121,10 +127,11 @@ class Trainer:
             # subband loss
             'subband_loss': subband_loss_value.item() if subband_loss_value else 0,
             }
-        import pdb
+        # import pdb
         # pdb.set_trace()
         if self.if_log_step and step % 100 == 0:
             self.unified_log(step_result, 'train', step=step)
+            
         return step_result
 
     def validate(self, step=None):
@@ -190,17 +197,25 @@ class Trainer:
             self.optim_D.load_state_dict(checkpoint['optim_D_state_dict'])
             self.start_epoch = checkpoint['epoch'] + 1
             print(f"Checkpoint loaded successfully from {checkpoint_path} at epoch {self.start_epoch}.")
+            # start_step
+            if 'step' in checkpoint:
+                self.start_step = checkpoint['step']
+                print(f"Resuming from step {self.start_step}.")
         else:
             raise ValueError(f"No checkpoint found at {checkpoint_path}.")
 
 
-    def save_checkpoint(self, epoch, val_result, save_path):
+    def save_checkpoint(self, epoch, val_result, save_path, step=None):
         os.makedirs(save_path, exist_ok=True)
-        filename = f"epoch_{epoch}_lsdh_{val_result['LSD_H']:.4f}.pth"
+        if step is not None:
+            filename = f"step_{step//1000}k_lsdh_{val_result['LSD_H']:.4f}.pth"
+        else:
+            filename = f"epoch_{epoch}_lsdh_{val_result['LSD_H']:.4f}.pth"
         save_path = os.path.join(save_path, filename)
         
         torch.save({
             'epoch': epoch,
+            'step' : step, 
             'generator_state_dict': self.generator.state_dict(),
             'discriminator_state_dict': self.discriminator.state_dict(),
             'optim_G_state_dict': self.optim_G.state_dict(),
@@ -208,8 +223,15 @@ class Trainer:
         }, save_path)
 
     def train(self, num_epochs):
+        if self.config['train']['val_step']:
+            val_step = self.config['train']['val_step']
+            
         best_lsdh = float('inf')
-        global_step = (self.start_epoch-1) * len(self.train_loader)
+        if self.start_step > 1:
+            global_step = self.start_step
+            print(f"Resuming from step {self.start_step}.")
+        else:
+            global_step = (self.start_epoch-1) * len(self.train_loader)
                 
         for epoch in range(self.start_epoch,num_epochs+1):
             train_result={}
@@ -218,7 +240,7 @@ class Trainer:
             for hr, lr, cond, _, _ in progress_bar:
                 global_step += 1
                 hr, lr, cond = hr.to(self.device), lr.to(self.device), cond.to(self.device)
-                step_result = self.train_step(hr, lr, cond, step=global_step)
+                step_result = self.train_step(hr, lr, cond, step=global_step, pretrain_step=self.config['train']['pretrain_step'])
 
                 # Sum up step losses for logging purposes
                 for key, value in step_result.items():
@@ -233,17 +255,12 @@ class Trainer:
                 # update scheduler
                 self.scheduler_G.step()
                 self.scheduler_D.step()
-                    
-            for key in train_result: # mean epoch loss
-                train_result[key] /= len(self.train_loader)
-            # self.unified_log(train_result, 'train', step=global_step)
-
-            val_result = self.validate(global_step)
-            self.unified_log(val_result, 'val', step=global_step)
-            
-            if val_result['LSD_H'] < best_lsdh:
-                # best_lsdh = val_result['LSD_H']
-                print(f"Ckpt saved at {self.config['train']['ckpt_save_dir']} with LSDH {val_result['LSD_H']:.4f}")
-                self.save_checkpoint(epoch, val_result, save_path=self.config['train']['ckpt_save_dir'])
-
-
+                
+                # validation
+                if global_step % val_step == 0:
+                    val_result = self.validate(global_step)
+                    self.unified_log(val_result, 'val', step=global_step)
+                    if val_result['LSD_H'] < best_lsdh:
+                        # best_lsdh = val_result['LSD_H']
+                        print(f"Ckpt saved at {self.config['train']['ckpt_save_dir']} with LSDH {val_result['LSD_H']:.4f}")
+                        self.save_checkpoint(epoch, val_result, save_path=self.config['train']['ckpt_save_dir'], step=global_step)
