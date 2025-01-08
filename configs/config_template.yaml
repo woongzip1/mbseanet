@@ -1,0 +1,112 @@
+random_seed: 0b011011
+run_name: "exp1"
+# RVQ
+
+#-----------------------------------------------
+#1. Dataset
+#-----------------------------------------------
+
+dataset:
+  # ratio: 0.0005
+  ratio: 1
+  wb_train: [
+              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/FSD50K",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/MUSDB18",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/VCTK",
+              ]
+  nb_train: [
+              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/FSD50K",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/MUSDB18",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/VCTK",
+              ]  
+  wb_test: [
+              "/home/woongjib/Projects/USAC/USAC44_GT", 
+              ]
+  nb_test: [
+              "/home/woongjib/Projects/USAC/USAC44_20_core", 
+              ]
+
+  batch_size: 16
+  seg_len: 0.9
+  num_workers: 4
+  start_index: 6 # num cores
+ 
+#-----------------------------------------------
+#2. Model
+#-----------------------------------------------
+
+generator:
+  type: MBSEANet_film
+  in_channels: 64 #FE
+  min_dim: 32     #SEANet 56?
+  visualize: False
+  c_in: 6
+  c_out: 26
+  strides: [1,2,2,2]
+  subband_num: 26
+  fe_weight_path: False
+  out_bias: True
+
+discriminator: 
+  type: MultiBandSTFTDiscriminator
+  MultiBandSTFTDiscriminator_config:
+      C: 32
+      n_fft_list: [2048, 1024, 512]
+      hop_len_list: [512, 256, 128]
+      band_split_ratio:
+          - [0.0, 0.1] # check only 4.5 kHz above
+          - [0.1, 0.25] # 0.1 -> 0.1875
+          - [0.25, 0.5]
+          - [0.5, 0.75]
+          - [0.75, 1.0]
+
+#-----------------------------------------------
+#3. Loss
+#-----------------------------------------------
+loss:
+  ms_mel_loss_config:
+            n_fft_list: [32, 64, 128, 256, 512, 1024, 2048]
+            hop_ratio: 0.25
+            mel_bin_list: [5, 10, 20, 40, 80, 160, 320]
+            reduction: mean
+            loss_ratio: 1.0
+            sr: 48000
+            fmin: 0
+
+  lambda_mel_loss: 15
+  lambda_fm_loss: 2
+  lambda_adv_loss: 1
+  lambda_commitment_loss: 0.25 # only for RVQ models
+  lambda_codebook_loss: 1
+  lambda_subband_loss: 15
+
+
+#-----------------------------------------------
+#4. Optimizer (ADAM)
+#-----------------------------------------------
+
+optim:
+  learning_rate_ft: 0.0001
+  learning_rate: 0.001
+  scheduler_gamma: 0.999996
+  B1: 0.5
+  B2: 0.9
+
+
+#-----------------------------------------------
+#Training
+#-----------------------------------------------
+train:
+  val_step: 1000 # 180분 10000 step
+  pretrain_step: 10000 # else False
+  ckpt_save_dir: "./ckpts/P4EXP1"
+  max_epochs: 40
+  
+
+  # True if load from previous
+  ckpt: False
+  ckpt_path: 
+
+eval:
+  eval_dir_audio: "/home/woongjib/Projects/BESSL__/outputs/P4EXP16_audio"
+  eval_dir_speech: "/home/woongjib/Projects/BESSL__/outputs/P4EXP16_speech"

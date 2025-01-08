@@ -5,7 +5,7 @@ __pycache__/
 wandb/
 
 __model_filmpy
+configs/exp*.yaml
 !configs/config_template.yaml
-configs/
 
 ToDoList.txt
