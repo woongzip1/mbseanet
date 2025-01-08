@@ -96,6 +96,8 @@ class Trainer:
         x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
         x_hat_full = self.pqmf_fb.synthesis(x_hat, length=hr.shape[-1])  # PQMF Synthesis
 
+        if self.config['loss']['lambda_subband_loss'] == 0:
+            hf_estimate = None 
         loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,
                                                                                                             hf_estimate=hf_estimate, target_subbands=target_subbands)  
         # Train generator

@@ -23,7 +23,7 @@ class LossCalculator:
         g_loss_dict, g_loss_report = self.discriminator.g_loss(hr, x_hat_full, adv_loss_type='hinge')
         
         # mel loss
-        ms_mel_loss_value = ms_mel_loss(hr, x_hat_full, **self.ms_mel_loss_config)
+        ms_mel_loss_value = ms_mel_loss(hr.squeeze(1), x_hat_full, **self.ms_mel_loss_config) # take care of tensor shape
 
         # subband loss
         if hf_estimate is not None:

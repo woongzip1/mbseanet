@@ -27,6 +27,9 @@ from dataset import CustomDataset
 DEVICE = f'cuda:0' if torch.cuda.is_available() else 'cpu'
 print(f"DEVICE: {DEVICE}")
 
+TIME = datetime.now()
+print(TIME.strftime("%Y-%m-%d %H:%M:%S"))
+
 # Dictionary for models and configuration
 MODEL_MAP = {
     "MBSEANet": MBSEANet,
