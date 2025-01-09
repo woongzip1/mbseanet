@@ -74,17 +74,22 @@ class PQMF(nn.Module):
         # Pad zeros at the front of the waveform,
         # according to the tab size and the down-sampling ratio
         x = F.pad(x, pad_input, 'constant', 0.)
+        # print("Pad Size", pad_input)
 
         pad_downsampling = ((self.num_subbands - (x.size(1) % self.num_subbands))
                             % self.num_subbands)
+        
         x = F.pad(x, (0, pad_downsampling), 'constant', 0.)
-
+        # print("Pad Size", pad_downsampling)
+        # print("Pad Size", x.shape)
 
         # Filtering and down-sampling
         x = x.unsqueeze(1)   # [B, 1, T]
         y = F.conv1d(x, self.h.unsqueeze(1),
                 bias=None,
                 stride=self.num_subbands)   # [B, num_subbands, T // num_subbands]
+        # print("Pad Size", y.shape)
+
 
         # Squeezing (if required)
         if need_squeezing:

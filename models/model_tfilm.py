@@ -152,19 +152,19 @@ class MBSEANet_film(nn.Module):
         self.encoder_with_film = nn.ModuleList([
             nn.Sequential(
                 EncBlock(min_dim * 2, strides[0]),
-                FiLMLayer(n_channels=min_dim * 2, subband_num=subband_num)
+                FiLMLayer(n_channels=min_dim * 2, subband_num=subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 4, strides[1]),
-                FiLMLayer(n_channels=min_dim * 4, subband_num=subband_num)
+                FiLMLayer(n_channels=min_dim * 4, subband_num=subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 8, strides[2]),
-                FiLMLayer(n_channels=min_dim * 8, subband_num=subband_num)
+                FiLMLayer(n_channels=min_dim * 8, subband_num=subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 16, strides[3]),
-                FiLMLayer(n_channels=min_dim * 16, subband_num=subband_num)
+                FiLMLayer(n_channels=min_dim * 16, subband_num=subband_num, visualize=visualize)
             )
         ])
 
@@ -175,7 +175,7 @@ class MBSEANet_film(nn.Module):
             kernel_size=7,
             stride=1,
         )
-        self.film_b1 = FiLMLayer(n_channels=min_dim * 16 // 4, subband_num=subband_num)
+        self.film_b1 = FiLMLayer(n_channels=min_dim * 16 // 4, subband_num=subband_num, visualize=visualize)
 
         self.conv_bottle2 = Conv1d(
             in_channels=min_dim * 16 // 4,
@@ -183,7 +183,7 @@ class MBSEANet_film(nn.Module):
             kernel_size=7,
             stride=1,
         )
-        self.film_b2 = FiLMLayer(n_channels=min_dim * 16, subband_num=subband_num)
+        self.film_b2 = FiLMLayer(n_channels=min_dim * 16, subband_num=subband_num, visualize=visualize)
 
         # Decoder blocks and FiLM layers combined
         self.decoder_with_film = nn.ModuleList([
@@ -237,6 +237,7 @@ class MBSEANet_film(nn.Module):
         pad_len = sig_len % self.downsampling_factor
         if pad_len != 0:
             x = x[:, :, :-pad_len]
+        print(pad_len)
         return x, pad_len
 
     def forward(self, x, condition):

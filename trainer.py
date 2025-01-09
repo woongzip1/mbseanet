@@ -81,7 +81,7 @@ class Trainer:
 
     def _forward_pass(self, lr, cond):
         if self.lambda_codebook_loss != 0:
-            return self.generator(lr, cond)
+            return self.generator(lr, cond) # three outputs
         return self.generator(lr, cond), 0, 0
 
     def train_step(self, hr, lr, cond, step, pretrain_step=0):
@@ -90,7 +90,7 @@ class Trainer:
         
         ## analysis
         nb = self.pqmf_fb.analysis(lr)[:, :self.config['dataset']['start_index'], :] # num core bands [B,5,T]
-        hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
+        hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)    
         target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['dataset']['start_index']:, :] # target subbands [B,27,T] 
             
         x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
@@ -98,7 +98,6 @@ class Trainer:
 
         if self.config['loss']['lambda_subband_loss'] == 0:
             hf_estimate = None 
-            ##
             
         loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,
                                                                                                             hf_estimate=hf_estimate, target_subbands=target_subbands)  

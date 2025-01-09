@@ -9,4 +9,6 @@ configs/exp*.yaml
 configs/config_sbr.yaml
 !configs/config_template.yaml
 
+*.pth
+
 ToDoList.txt

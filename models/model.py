@@ -8,7 +8,7 @@ from models.modules import Conv1d,EncBlock,DecBlock
 
 
 class MBSEANet(nn.Module):
-    def __init__(self, min_dim=8, strides=[2,2,8,8], 
+    def __init__(self, min_dim=8, strides=[1,2,2,2], 
                  c_in=32, c_out=32, out_bias=True,
                  **kwargs):
         super().__init__()
@@ -67,7 +67,7 @@ class MBSEANet(nn.Module):
         pad_len = sig_len % self.downsampling_factor
         if pad_len != 0:
             x = x[:, :, :-pad_len]
-            print(pad_len) ### for debug
+            # print(pad_len) ### for debug
         return x, pad_len
     
     def forward(self, x, HR=None):

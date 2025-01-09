@@ -54,8 +54,8 @@ discriminator:
       n_fft_list: [2048, 1024, 512]
       hop_len_list: [512, 256, 128]
       band_split_ratio:
-          - [0.0, 0.1] # check only 4.5 kHz above
-          - [0.1, 0.25] # 0.1 -> 0.1875
+          # - [0.0, 0.1] # check only 4.5 kHz above
+          - [0.1875, 0.25] # 0.1 -> 0.1875
           - [0.25, 0.5]
           - [0.5, 0.75]
           - [0.75, 1.0]
@@ -71,7 +71,8 @@ loss:
             reduction: mean
             loss_ratio: 1.0
             sr: 48000
-            fmin: 0
+            fmin: 0 # for 4.5 kHz
+            core_cutoff: 4500
 
   lambda_mel_loss: 15
   lambda_fm_loss: 2

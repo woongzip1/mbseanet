@@ -620,7 +620,7 @@ class MultiBandSTFTDiscriminator(DiscCore):
         self.hop_length = hop_length
         
         n_bins = n_fft // 2 + 1
-        bands = [(int(b[0] * n_bins), int(b[1] * n_bins)) for b in bands] # band index extraction
+        bands = [(int(b[0] * n_bins), int(b[1] * n_bins)) for b in bands] # band index extraction (start,end)
         self.bands = bands
 
         ch = C

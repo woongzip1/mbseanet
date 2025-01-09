@@ -107,14 +107,15 @@ def ms_stft_loss(x, x_hat, n_fft_list=[16, 32, 64], hop_ratio=0.25, eps=1e-5):
     return total_loss/scale_factor, sc_loss/scale_factor, mag_loss/scale_factor
     
 def ms_mel_loss(x, x_hat, n_fft_list=[32, 64, 128, 256, 512, 1024, 2048], hop_ratio=0.25, 
-                mel_bin_list=[5, 10, 20, 40, 80, 160, 320], fmin=0, fmax=None, sr=44100, mel_power=1.0, 
+                mel_bin_list=[5, 10, 20, 40, 80, 160, 320], fmin=0, fmax=None, sr=44100, mel_power=1.0,
+                core_cutoff = 4500,
                 eps=1e-5, reduction='mean', **kwargs):
     """
     Multi-scale spectral energy distance loss
     References:
         Kumar, Rithesh, et al. "High-Fidelity Audio Compression with Improved RVQGAN." NeurIPS, 2023.
     Args:
-        x (torch.Tensor) [B, ..., T]: ground truth waveform
+        x (torch.Tensor) [B, ..., T]: ground truth waveform (Batched)
         x_hat (torch.Tensor) [B, ..., T]: generated waveform
         n_fft_list (List of int): list that contains n_fft for each scale
         hop_ratio (float): hop_length = n_fft * hop_ratio
@@ -132,11 +133,18 @@ def ms_mel_loss(x, x_hat, n_fft_list=[32, 64, 128, 256, 512, 1024, 2048], hop_ra
                                     window_fn=hann, wkwargs={"sym": False},\
                                     power=1.0, normalized=False, center=True).to(x.device)
         spg_to_mel = T.MelScale(n_mels=mel_bin, sample_rate=sr, n_stft=n_fft//2+1, f_min=fmin, f_max=fmax, norm="slaney", mel_scale="slaney").to(x.device)  
-        x_mel = spg_to_mel(sig_to_spg(x))  # [B, C, mels, T]
-        x_hat_mel = spg_to_mel(sig_to_spg(x_hat))
         
+        ## erase core bands considerations
+        x_spg = sig_to_spg(x) # [B,F,T]
+        f_start = int((core_cutoff / sr) * n_fft) + 1
+        x_spg[:,:f_start,:] = 0
+        x_mel = spg_to_mel(x_spg) # [B, C, mels, T]
+        
+        x_hat_spg = sig_to_spg(x_hat)
+        x_hat_spg[:,:f_start,:] = 0
+        x_hat_mel = spg_to_mel(x_hat_spg)
+        ##
         log_term = torch.sum(torch.abs(x_mel.clamp(min=eps).pow(mel_power).log10() - x_hat_mel.clamp(min=eps).pow(mel_power).log10()))
-        
         if reduction == 'mean':
             log_term /= torch.numel(x_mel)
         elif reduction == 'sum':
