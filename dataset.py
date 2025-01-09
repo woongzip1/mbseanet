@@ -134,8 +134,8 @@ class CustomDataset(Dataset):
 
         # return spectrogram[:, :]  
         log_spectrogram = ta.transforms.AmplitudeToDB()(spectrogram)
-        spec_length = waveform.shape[-1] // 2048
-        return log_spectrogram[..., :spec_length]  
+        # spec_length = waveform.shape[-1] // 2048
+        return log_spectrogram  
 
     def normalize_spec(self, spec):
         norm_mean = -42.61

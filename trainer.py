@@ -211,7 +211,7 @@ class Trainer:
     def save_checkpoint(self, epoch, val_result, save_path, step=None):
         os.makedirs(save_path, exist_ok=True)
         if step is not None:
-            filename = f"step_{step//1000}k_lsdh_{val_result['LSD_H']:.4f}.pth"
+            filename = f"step_{step/1000:.1f}k_lsdh_{val_result['LSD_H']:.4f}.pth"
         else:
             filename = f"epoch_{epoch}_lsdh_{val_result['LSD_H']:.4f}.pth"
         save_path = os.path.join(save_path, filename)

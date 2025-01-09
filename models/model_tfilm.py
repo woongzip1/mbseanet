@@ -237,7 +237,7 @@ class MBSEANet_film(nn.Module):
         pad_len = sig_len % self.downsampling_factor
         if pad_len != 0:
             x = x[:, :, :-pad_len]
-        print(pad_len)
+        # print(pad_len)
         return x, pad_len
 
     def forward(self, x, condition):
