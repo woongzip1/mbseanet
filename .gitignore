@@ -1,4 +1,5 @@
 _test*.ipynb
+__*.ipynb
 
 ckpts/
 __pycache__/

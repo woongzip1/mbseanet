@@ -38,8 +38,9 @@ MODEL_MAP = {
 }
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="BESSL Script")
+    parser = argparse.ArgumentParser(description="mbseanet Script")
     parser.add_argument('--config', type=str, required=True, help="Path to the config file")
+    parser.add_argument('--wandb', type=lambda x:x.lower() == 'true', required=True, help="wandb logging (True/False)")
     return parser.parse_args()
 
 def load_config(config_path):
@@ -102,14 +103,16 @@ def prepare_dataloader(config_path):
     
     return train_dataloader, val_dataloader
 
-def main(if_log_to_wandb, if_log_step):
-    args = parse_args()
+def main(args):
+    if_log_step = True
+    if_log_to_wandb = args.wandb
     config = load_config(args.config)
+
     torch.manual_seed(42)
     random.seed(42)
-    
+   
     if if_log_to_wandb: # if log
-        wandb.init(project='MBSEANet', entity='woongzip1', config=config, name=config['run_name'], notes=config['run_name'])
+        wandb.init(project='mbseanet_a', entity='woongzip1', config=config, name=config['run_name'], notes=config['run_name'])
     
     # Prepare dataloaders
     train_loader, val_loader = prepare_dataloader(args.config)
@@ -136,8 +139,15 @@ def main(if_log_to_wandb, if_log_step):
         optim_D = torch.optim.Adam(discriminator.parameters(), lr=config['optim']['learning_rate'], betas=(config['optim']['B1'], config['optim']['B2']))
         
     # Schedulers
-    scheduler_G = lr_scheduler.ExponentialLR(optim_G, gamma=config['optim']['scheduler_gamma'])
-    scheduler_D = lr_scheduler.ExponentialLR(optim_D, gamma=config['optim']['scheduler_gamma'])
+    if config['use_tri_stage']:
+        from scheduler import TriStageLRScheduler
+        print("*** TriStageLRScheduler ***")
+        scheduler_G = TriStageLRScheduler(optimizer=optim_G, **config['tri_scheduler'])
+        scheduler_D = TriStageLRScheduler(optimizer=optim_D, **config['tri_scheduler'])
+    else:
+        print("*** Exp LRScheduler ***")
+        scheduler_G = lr_scheduler.ExponentialLR(optim_G, gamma=config['optim']['scheduler_gamma'])
+        scheduler_D = lr_scheduler.ExponentialLR(optim_D, gamma=config['optim']['scheduler_gamma'])
 
     import pdb
     # pdb.set_trace()
@@ -157,4 +167,5 @@ def main(if_log_to_wandb, if_log_step):
     trainer.train(num_epochs=config['train']['max_epochs'])
 
 if __name__ == "__main__":
-    main(if_log_to_wandb=True, if_log_step=True)
+    args = parse_args()
+    main(args)

@@ -232,18 +232,53 @@ class MBSEANet_film_sbr(nn.Module):
         B,C,sig_len = x.size() # [B,C,T]
         pad_len = sig_len % self.downsampling_factor
         if pad_len != 0:
-            x = x[:, :, :-pad_len]
-        return x, pad_len
+            front_pad = pad_len // 2
+            back_pad = pad_len - front_pad
+            # x = x[:, :, :-pad_len]
+            x = x[:, :, front_pad:-back_pad]
+        else:
+            front_pad = 0
+            back_pad = 0
+        # print(pad_len)
+        return x, front_pad, back_pad
+    
+    def _crop_signal_len(self, x, crop_len=8):
+        prev_x = x[:,:,:crop_len]
+        post_x = x[:,:,-crop_len:]
+        x = x[:, :, crop_len:-crop_len]
+        return x, prev_x, post_x
+    
+    def _pad_signal_len(self, x, front_pad, back_pad):
+        # C_out = x.size(1)
+    
+        # prev = prev.repeat(1, C_out // prev.size(1) + 1, 1)  # Repeat channels to match C_out
+        # if prev.size(1) != C_out:
+        #     prev = prev[:, :C_out, :]  # Truncate excess channels if necessary
 
-    def forward(self, x, condition):
-        x, pad_len = self._adjust_signal_len(x)
+        # post = post.repeat(1, C_out // post.size(1) + 1, 1)  # Repeat channels to match C_out
+        # if post.size(1) != C_out:
+        #     post = post[:, :C_out, :]  # Truncate excess channels if necessary
 
+        # Concatenate `prev`, `x`, `post`, and `padval`
+        padded_x = torch.cat((front_pad, x, back_pad), dim=-1)  # Concatenate along time axis
+        
+        return padded_x
+    
+
+    def forward(self, x, cond):
+        # make sure input is multiple of 2048
+        # import pdb
+        # pdb.set_trace()
+        x, front_pad, back_pad = self._adjust_signal_len(x)
+        import pdb
+        # pdb.set_trace() # [B,512,32,21] # [B,21, (512.32)]
+        
         # Feature extraction and reduction
-        embedding = self.feature_encoder(condition)
+        embedding = self.feature_encoder(cond)
         embedding = rearrange(embedding, 'b d f t -> b t (d f)')
-        embedding = self.EmbeddingReduction(embedding)
+        embedding = self.EmbeddingReduction(embedding) # [B, T, (DF)] -> [B,T,21]
         embedding = rearrange(embedding, 'b t f -> b f t')
-
+        
         # Residual vector quantization (RVQ)
         embedding, codes, latents, commitment_loss, codebook_loss = self.rvq(embedding)
         embedding = rearrange(embedding, 'b f t -> b t f')
@@ -257,7 +292,7 @@ class MBSEANet_film_sbr(nn.Module):
         skip.append(x)
 
         if self.visualize:
-            print("Input Signal Length:", x.shape[2], "Fragment:", pad_len)
+            print("Input Signal Length:", x.shape[2], "Fragment:")
 
         # Encoder with FiLM layers
         for block in self.encoder_with_film:
@@ -279,8 +314,9 @@ class MBSEANet_film_sbr(nn.Module):
             x = block[1](x, embedding)  # FiLMLayer
 
         x = self.conv_out(x)
-
-        padval = torch.zeros([x.size(0), x.size(1), pad_len]).to(x.device) # [B,C_out,T]
-        x = torch.cat((x, padval), dim=-1)
-
+        
+        front_pad = torch.zeros([x.size(0), x.size(1), front_pad]).to(x.device) 
+        back_pad = torch.zeros([x.size(0), x.size(1), back_pad]).to(x.device)
+        x = self._pad_signal_len(x, front_pad, back_pad)
         return x, commitment_loss, codebook_loss
+    

@@ -17,8 +17,35 @@ class LossCalculator:
         self.ms_mel_loss_config = config['loss']['ms_mel_loss_config']
         
         self.lambda_subband_loss = config['loss']['lambda_subband_loss']
-
+        self.num_taps = 481
+        
+    def _save_figures(self, hr, x_hat_full):
+        ## for debugging
+        hr = hr[0,...]
+        x_hat_full = x_hat_full[0,...]
+        from matplotlib import pyplot as plt
+        # clip front samples
+        plt.figure(figsize=(14, 4))
+        plt.plot(hr.squeeze().cpu().detach().numpy(), label='gt')
+        plt.plot(x_hat_full.squeeze().cpu().detach().numpy() + 0.1, label='recon')
+        # start = x.shape[-1] - num_taps
+        start = 0
+        step = self.num_taps + 200
+        plt.xlim(start, start + step)
+        plt.legend()
+        # Save the figure instead of showing it
+        save_path = "output_plot.png"  # Define the output file path
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        
     def compute_generator_loss(self, hr, x_hat_full, commitment_loss, codebook_loss, hf_estimate=None, target_subbands=None):
+        # self._save_figures(hr, x_hat_full)
+        # import pdb
+        # pdb.set_trace()
+        
+        hr = hr[...,self.num_taps//2:]
+        x_hat_full = x_hat_full[...,self.num_taps//2:]
+        
         # adv loss
         g_loss_dict, g_loss_report = self.discriminator.g_loss(hr, x_hat_full, adv_loss_type='hinge')
         
@@ -44,8 +71,8 @@ class LossCalculator:
 
     def compute_discriminator_loss(self, hr, x_hat_full):
         d_loss_dict, d_loss_report = self.discriminator.d_loss(hr, x_hat_full, adv_loss_type='hinge')
-        import pdb
         loss_D = d_loss_dict.get('adv_d', 0)
+        # import pdb
         # pdb.set_trace()
         # loss_D = sum(d_loss_dict.values())
 

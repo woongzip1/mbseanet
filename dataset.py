@@ -58,10 +58,16 @@ class CustomDataset(Dataset):
     def get_class_counts(self):
         return [self.path_lengths[f'idx{i}len'] for i in range(len(self.path_lengths))]
 
+    def _multiple_pad(self, wav, N=2048):
+        pad_len = (N - wav.shape[-1] % N) % N
+        wav = torch.nn.functional.pad(wav, (0, pad_len), mode='constant', value=0)
+        return wav
+
     def __len__(self):
         return len(self.filenames)
 
     def __getitem__(self, idx):
+        N = 2048
         path_wav_wb, path_wav_nb = self.filenames[idx]
         # get label with current nb-wb pair
         label = self.labels[idx]
@@ -73,8 +79,9 @@ class CustomDataset(Dataset):
         wav_nb = wav_nb.view(1, -1)
 
         if self.seg_len > 0 and self.mode == "train": # train mode
-            duration = int(self.seg_len * self.sr) #43200
-
+            duration = int(self.seg_len * self.sr) # 43200
+            duration = (duration // N) * N # multiple of N
+            
             if wav_nb.shape[-1] < duration:
                 wav_nb = self.ensure_length(wav_nb, duration)
                 wav_wb = self.ensure_length(wav_wb, duration)
@@ -84,10 +91,10 @@ class CustomDataset(Dataset):
                 wav_wb = wav_wb[:, start_idx:start_idx + duration]
 
         elif self.mode == "val": 
-            pass
+            wav_nb = self._multiple_pad(wav_nb)
+            wav_wb = self._multiple_pad(wav_wb)            
             # wav_nb = self.ensure_length(wav_nb, int(self.seg_len * self.sr))
             # wav_wb = self.ensure_length(wav_wb, int(self.seg_len * self.sr))
-
         else:
             sys.exit(f"unsupported mode! (train/val)")
 
@@ -120,21 +127,25 @@ class CustomDataset(Dataset):
         return wav
 
     @staticmethod
-    def get_log_spectrogram(waveform):
+    def get_log_spectrogram(waveform, N=2048):
         n_fft = 2048
         hop_length = 2048 
         win_length = 2048
+
+        # pad at the end to make (mod N)
+        padlen = (N - waveform.shape[-1] % N) % N
+        waveform = F.pad(waveform, (0, padlen))
 
         spectrogram = ta.transforms.Spectrogram(
             n_fft=n_fft, 
             hop_length=hop_length, 
             win_length=win_length, 
-            power=2.0
+            power=2.0,
+            center=False,
         )(waveform)
 
         # return spectrogram[:, :]  
         log_spectrogram = ta.transforms.AmplitudeToDB()(spectrogram)
-        # spec_length = waveform.shape[-1] // 2048
         return log_spectrogram  
 
     def normalize_spec(self, spec):
@@ -144,19 +155,26 @@ class CustomDataset(Dataset):
         return spec
     
     def extract_subband(self, spec, start=5, end=31):
-        """ Get spectrogram Inputs and extract range of subbands : [start:end] """
+        """ Get spectrogram Inputs and extract range of subbands : [start:end] 
+        start: start index of subband (from 0)
+        start=0: from first subband
+        start=N: from N+1 th subband
+        Total 32 subbands
+        """
         
         C,F,T = spec.shape # C F T
         num_subband = 32
         freqbin_size = F // num_subband # 1024//32
-        dc_line = spec[:,0,:].unsqueeze(1)
 
+        dc_line = spec[:,0,:].unsqueeze(1)
+        
         f_start = 1 + freqbin_size * start
         f_end = 1 + freqbin_size * (end+1)
 
         extracted_spec = spec[:,f_start:f_end,:]
         if f_start == 1:
-            extracted_spec = torch.cat((dc_line, extracted_spec),dim=1)
+            extracted_spec = torch.cat((dc_line, extracted_spec),dim=1) # [C,F,T]
 
         # print(f_start/1024 * 24000, f_end/1024 * 24000)
-        return extracted_spec
+        return extracted_spec # C, F, T
+
