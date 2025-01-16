@@ -5,6 +5,8 @@ ckpts/
 __pycache__/
 wandb/
 
+debug/
+
 __model_filmpy
 configs/exp*.yaml
 configs/config_sbr.yaml

@@ -91,7 +91,7 @@ class Trainer:
         
         ## analysis
         nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :] # num core bands [B,5,T]
-        hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)    
+        hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
         target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:, :] # target subbands [B,27,T] 
             
         x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
@@ -103,14 +103,32 @@ class Trainer:
         ### new hr
         hr = self.pqmf_fb.synthesis(torch.cat([nb.detach(), target_subbands], dim=1), delay=0, length=hr.shape[-1])
         ###
+        # hr = hr.squeeze(1)
+        ##
         loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,
                                                                                                                      hf_estimate=hf_estimate, target_subbands=target_subbands)  
+        #### for gradient exploding ####
+        if ms_mel_loss_value > 10:
+            print("loss_G:", loss_G)
+            print("loss_mel:", ms_mel_loss_value)
+            print("commitment", commitment_loss)
+            print("loss_G_dict", g_loss_dict)
+            # x, y 텐서 저장
+            debug_data = {
+                "lr": lr.detach().cpu(), "hr": hr.detach().cpu(),
+                "nb": nb.detach().cpu(), "hf_estimate": hf_estimate.detach().cpu(),
+                "input": x_hat_full.detach().cpu(), "target": hr.detach().cpu()}
+            torch.save(debug_data, "debug/gradients.pt")
+            print(f"Debug data saved to debug/")
+            raise ValueError("Gradient Exploded!")        
+        ########################
+        
         # Train generator
         self.optim_G.zero_grad()
         loss_G.backward() # mean?
         # gradient clipping
-        if step < 2000:
-            clip_grad_norm_(self.generator.parameters(), max_norm=5.0)
+        # if step < 2000:
+        clip_grad_norm_(self.generator.parameters(), max_norm=3.0)
         
         self.optim_G.step()
 
@@ -165,14 +183,16 @@ class Trainer:
                 ## new hr
                 hr = self.pqmf_fb.synthesis(torch.cat([nb.detach(), target_subbands], dim=1), delay=0, length=hr.shape[-1])
                 ##
+                # hr = hr.squeeze(1)
+                ##
                 loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,
                                                                                                                             hf_estimate=hf_estimate, target_subbands=target_subbands)  
-
+                
                 loss_D, d_loss_dict, d_loss_report = self.loss_calculator.compute_discriminator_loss(hr, x_hat_full)
 
                 # Compute LSD and LSD_H metrics
-                batch_lsd_l = lsd_batch(x_batch=hr.cpu(), y_batch=x_hat_full.cpu(), fs=48000, start=0, cutoff_freq=4640)
-                batch_lsd_h = lsd_batch(x_batch=hr.cpu(), y_batch=x_hat_full.cpu(), fs=48000, start=4640, cutoff_freq=24000)
+                batch_lsd_l = lsd_batch(x_batch=hr.cpu(), y_batch=x_hat_full.cpu(), fs=48000, start=0, cutoff_freq=4500)
+                batch_lsd_h = lsd_batch(x_batch=hr.cpu(), y_batch=x_hat_full.cpu(), fs=48000, start=4500, cutoff_freq=24000)
                 result['LSD_L'] += batch_lsd_l
                 result['LSD_H'] += batch_lsd_h
 

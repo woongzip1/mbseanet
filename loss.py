@@ -45,12 +45,17 @@ class LossCalculator:
         
         hr = hr[...,self.num_taps//2:]
         x_hat_full = x_hat_full[...,self.num_taps//2:]
+        assert hr.shape == x_hat_full.shape, f"size mismatch- {hr.shape}, {x_hat_full.shape}" # [B,T]
+
+        # import pdb
+        # pdb.set_trace()
         
         # adv loss
         g_loss_dict, g_loss_report = self.discriminator.g_loss(hr, x_hat_full, adv_loss_type='hinge')
         
         # mel loss
-        ms_mel_loss_value = ms_mel_loss(hr.squeeze(1), x_hat_full, **self.ms_mel_loss_config) # take care of tensor shape
+        # squeeze and careout for tensor shape
+        ms_mel_loss_value = ms_mel_loss(hr, x_hat_full, **self.ms_mel_loss_config) # take care of tensor shape
 
         # subband loss
         if hf_estimate is not None:
@@ -154,6 +159,8 @@ def ms_mel_loss(x, x_hat, n_fft_list=[32, 64, 128, 256, 512, 1024, 2048], hop_ra
     Returns:
     """
     assert len(n_fft_list) == len(mel_bin_list)
+    assert x.shape == x_hat.shape, "input and target must have the same shape"
+    
     loss = 0
     for n_fft, mel_bin in zip(n_fft_list, mel_bin_list):
         sig_to_spg = T.Spectrogram(n_fft=n_fft, win_length=n_fft, hop_length=int(n_fft * hop_ratio), 
@@ -162,15 +169,18 @@ def ms_mel_loss(x, x_hat, n_fft_list=[32, 64, 128, 256, 512, 1024, 2048], hop_ra
         spg_to_mel = T.MelScale(n_mels=mel_bin, sample_rate=sr, n_stft=n_fft//2+1, f_min=fmin, f_max=fmax, norm="slaney", mel_scale="slaney").to(x.device)  
         
         ## erase core bands considerations
-        x_spg = sig_to_spg(x) # [B,F,T]
-        f_start = int((core_cutoff / sr) * n_fft) + 1
-        x_spg[:,:f_start,:] = 0
-        x_mel = spg_to_mel(x_spg) # [B, C, mels, T]
+        # x_spg = sig_to_spg(x) # [B,F,T]
+        # f_start = int((core_cutoff / sr) * n_fft) + 1
+        # x_spg[:,:f_start,:] = 0
+        # x_mel = spg_to_mel(x_spg) # [B, C, mels, T]
         
-        x_hat_spg = sig_to_spg(x_hat)
-        x_hat_spg[:,:f_start,:] = 0
-        x_hat_mel = spg_to_mel(x_hat_spg)
-        ##
+        # x_hat_spg = sig_to_spg(x_hat)
+        # x_hat_spg[:,:f_start,:] = 0
+        # x_hat_mel = spg_to_mel(x_hat_spg)
+        ################################
+        x_mel = spg_to_mel(sig_to_spg(x))           # [B,F,T]
+        x_hat_mel = spg_to_mel(sig_to_spg(x_hat))
+        
         log_term = torch.sum(torch.abs(x_mel.clamp(min=eps).pow(mel_power).log10() - x_hat_mel.clamp(min=eps).pow(mel_power).log10()))
         if reduction == 'mean':
             log_term /= torch.numel(x_mel)

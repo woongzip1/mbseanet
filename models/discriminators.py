@@ -204,7 +204,7 @@ class DiscCore(nn.Module):
         
         return loss_ref, loss_syn, report 
     
-    def g_loss(self, x, x_hat, obj_func='hinge'):
+    def g_loss(self, x, x_hat, obj_func='hinge', eps=1e-6):
         """
         Calculate adversarial loss for generator and feature matching loss. Hinge loss and LSGAN loss are available.
         """
@@ -213,6 +213,11 @@ class DiscCore(nn.Module):
         # Compute scores and get features maps
         _, ref_features = self.forward(x, True)
         syn_scores, syn_features = self.forward(x_hat, True)
+        
+        ### clipping discriminator
+        syn_scores = torch.clamp(syn_scores, min=-10.0, max=10.0)
+        ####
+        
         # ref_features = [f.detach() for f in ref_features]
 
         if obj_func == 'hinge':
@@ -229,7 +234,11 @@ class DiscCore(nn.Module):
         loss_fm = 0
         num_features = 0
         for ref_feature, syn_feature in zip(ref_features, syn_features):
-            loss_fm += torch.mean(torch.abs(ref_feature - syn_feature)) / torch.mean(torch.abs(ref_feature))
+            ## clip
+            syn_feature = torch.clamp(syn_feature, min=-10.0, max=10.0)
+            ##
+            assert ref_feature.shape == syn_feature.shape, "different feature shapes"
+            loss_fm += torch.mean(torch.abs(ref_feature - syn_feature)) / (torch.mean(torch.abs(ref_feature)) + eps)
             num_features += 1
         loss_fm /= num_features
         report['fm/' + self.name] = loss_fm.item()
