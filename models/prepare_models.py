@@ -2,24 +2,43 @@ from models.discriminators import MultiBandSTFTDiscriminator, SSDiscriminatorBlo
 
 def prepare_discriminator(config):
     
-    disc_type = config['discriminator']['type']
+    # disc_type = config['discriminator']['type']
+    disc_config = config['discriminator']
+    mbstftd_config = disc_config.get('MultiBandSTFTDiscriminator_config', None)
+    mpd_config = disc_config.get('PeriodDiscriminator_config', None)
+    
+    if not mbstftd_config and not mpd_config:
+        raise ValueError(f"At least one discriminator is required")
 
-    if disc_type == "MultiBandSTFTDiscriminator":
-        disc_config = config["discriminator"]['MultiBandSTFTDiscriminator_config']
-        discriminator = SSDiscriminatorBlock(
-            sd_num=len(disc_config['n_fft_list']),
-            C=disc_config['C'],
-            n_fft_list=disc_config['n_fft_list'],
-            hop_len_list=disc_config['hop_len_list'],
-            sd_mode='BS',
-            band_split_ratio=disc_config['band_split_ratio']
-        )
-    else:
-        raise ValueError(f"Unsupported discriminator type: {disc_type}")
+    discriminator = SSDiscriminatorBlock(
+        # STFTD config
+        sd_num=len(mbstftd_config['n_fft_list']) if mbstftd_config else 0,
+        C=mbstftd_config['C'] if mbstftd_config else None,
+        n_fft_list=mbstftd_config['n_fft_list'] if mbstftd_config else [],
+        hop_len_list=mbstftd_config['hop_len_list'] if mbstftd_config else [],
+        band_split_ratio=mbstftd_config['band_split_ratio'] if mbstftd_config else [],
+        sd_mode='BS',
+        
+        # MPD config
+        pd_num=len(mpd_config['period_list']) if mpd_config else 0,
+        period_list=mpd_config['period_list'] if mpd_config else [],
+        C_period=mpd_config['C_period'] if mpd_config else None,
+    )
 
     # Print information about the loaded model
+    # Print information about the discriminator
     print("########################################")
-    print(f"Discriminator Type: {disc_type}")
+    print("Discriminator Configurations:")
+    if mbstftd_config:
+        print(f"- STFTD Config: {mbstftd_config}")
+    else:
+        print("- STFTD is not used.")
+    
+    if mpd_config:
+        print(f"- MPD Config: {mpd_config}")
+    else:
+        print("- MPD is not used.")
+    
     print(f"Discriminator Parameters: {sum(p.numel() for p in discriminator.parameters() if p.requires_grad) / 1_000_000:.2f}M")
     print("########################################")
 

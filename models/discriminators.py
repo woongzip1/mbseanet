@@ -18,8 +18,8 @@ class SSDiscriminatorBlock(nn.Module):
     """
     def __init__(self, 
                  wd_num=0, ds_factor_list=[],
-                 sd_num=0, C=32, n_fft_list=[], hop_len_list=[], sd_mode='SS', band_split_ratio=[],
-                 pd_num=0, period_list=[],
+                 sd_num=0, C=32, n_fft_list=[], hop_len_list=[], sd_mode='BS', band_split_ratio=[],
+                 pd_num=0, period_list=[], C_period=64,
                  **kwargs):
         """
         Class that aggregates various discriminators used with SoundStream autoencoder.
@@ -64,7 +64,7 @@ class SSDiscriminatorBlock(nn.Module):
         self.period_disc_list = nn.ModuleList()
         for i, period in enumerate(period_list):
             disc_name = f"pd{i + 1}"
-            self.period_disc_list.append(PeriodDiscriminator(period, name=disc_name))
+            self.period_disc_list.append(PeriodDiscriminator(period, name=disc_name, C=C_period))
     
    
     def d_loss(self, x, x_hat, adv_loss_type, **kwargs):
@@ -627,7 +627,7 @@ class MultiBandSTFTDiscriminator(DiscCore):
         layers = lambda: nn.ModuleList(
             [
                 WNConv2d(2, ch, (3, 9), (1, 1), padding=(1, 4)),
-                WNConv2d(ch, ch, (3, 9), (1, 2), padding=(1, 4)),
+                WNConv2d(ch, ch, (3, 9), (1, 2), padding=(1, 4)), # downsampling along F axis
                 WNConv2d(ch, ch, (3, 9), (1, 2), padding=(1, 4)),
                 WNConv2d(ch, ch, (3, 9), (1, 2), padding=(1, 4)),
                 WNConv2d(ch, ch, (3, 3), (1, 1), padding=(1, 1)),
@@ -648,7 +648,11 @@ class MultiBandSTFTDiscriminator(DiscCore):
         return x_bands
 
     def forward(self, x, return_features):
+        """
+        feature_map: list of intermediate convolution feature maps [B,C,T,F]
+        """
         x_bands = self.stft_band_split(x)   # [B, T] -> List[B, 2, T, f]
+        
         feature_map = []
 
         outputs_per_band = []
@@ -699,6 +703,11 @@ class PeriodDiscriminator(DiscCore):
         ])
 
     def forward(self, x, return_features):
+        """
+        for each period
+        x: Tensor [B,1,T_down,p] 
+        fm: List of [B,C,T_down,p]
+        """
         x = x.unsqueeze(1)  # [B, T] -> [B, 1, T]
         x = F.pad(x, (0, self.period - x.size(-1) % self.period), 'constant')   # Padding before squeezing
         x = x.view(x.size(0), 1, -1, self.period)   # [B, 1, T_padded / P, P]
