@@ -244,6 +244,7 @@ class MBSEANet_film(nn.Module):
             front_pad = 0
             back_pad = 0
         # print(pad_len)
+        # print("SIGNAL ADJUST")
         return x, front_pad, back_pad
 
     def _crop_signal_len(self, x, crop_len=8):
@@ -253,7 +254,7 @@ class MBSEANet_film(nn.Module):
         return x, prev_x, post_x
     
     def _pad_signal_len(self, x, front_pad, back_pad):
-        C_out = x.size(1)
+        # C_out = x.size(1)
     
         # prev = prev.repeat(1, C_out // prev.size(1) + 1, 1)  # Repeat channels to match C_out
         # if prev.size(1) != C_out:

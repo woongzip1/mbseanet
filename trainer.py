@@ -13,6 +13,8 @@ from loss import LossCalculator
 from pqmf import PQMF
 from torch.nn.utils import clip_grad_norm_
 
+## changed into old ver (using GT as target)
+
 class Trainer:
     def __init__(self, generator, discriminator, train_loader, val_loader, optim_G, optim_D, config, device, 
                  scheduler_G=None, scheduler_D=None, if_log_step=False, if_log_to_wandb=True):
@@ -88,35 +90,35 @@ class Trainer:
     def train_step(self, hr, lr, cond, step, pretrain_step=0):
         self.generator.train()
         self.discriminator.train()
-        
         ## analysis
         nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :] # num core bands [B,5,T]
         hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
         target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:, :] # target subbands [B,27,T] 
-            
+        
+        ##### synthesis #####
+        # import pdb
+        # pdb.set_trace()
+        hr = self.pqmf_fb.synthesis(torch.cat((nb, target_subbands), dim=1), delay=0, length=hr.shape[-1]) # [B,T]
+        ###### #####
         x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
         x_hat_full = self.pqmf_fb.synthesis(x_hat, delay=0, length=hr.shape[-1])  # PQMF Synthesis
 
         if self.config['loss']['lambda_subband_loss'] == 0:
+            hf_for_save = hf_estimate
             hf_estimate = None 
             
-        ### new hr
-        hr = self.pqmf_fb.synthesis(torch.cat([nb.detach(), target_subbands], dim=1), delay=0, length=hr.shape[-1])
-        ###
-        # hr = hr.squeeze(1)
-        ##
         loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,
-                                                                                                                     hf_estimate=hf_estimate, target_subbands=target_subbands)  
+                                                                                                    hf_estimate=hf_estimate, target_subbands=target_subbands)  
+        
         #### for gradient exploding ####
         if ms_mel_loss_value > 10:
             print("loss_G:", loss_G)
             print("loss_mel:", ms_mel_loss_value)
             print("commitment", commitment_loss)
             print("loss_G_dict", g_loss_dict)
-            # x, y 텐서 저장
             debug_data = {
                 "lr": lr.detach().cpu(), "hr": hr.detach().cpu(),
-                "nb": nb.detach().cpu(), "hf_estimate": hf_estimate.detach().cpu(),
+                "nb": nb.detach().cpu(), "hf_estimate": hf_for_save.detach().cpu(),
                 "input": x_hat_full.detach().cpu(), "target": hr.detach().cpu()}
             torch.save(debug_data, "debug/gradients.pt")
             print(f"Debug data saved to debug/")
@@ -126,7 +128,8 @@ class Trainer:
         # Train generator
         self.optim_G.zero_grad()
         loss_G.backward() # mean?
-        # gradient clipping
+        
+        # gradient clip
         # if step < 2000:
         clip_grad_norm_(self.generator.parameters(), max_norm=3.0)
         
@@ -171,23 +174,20 @@ class Trainer:
         with torch.no_grad():
             for i, (hr, lr, cond, _, _) in enumerate(tqdm(self.val_loader, desc='Validation')):
                 lr, hr, cond = lr.to(self.device), hr.to(self.device), cond.to(self.device)
-                # import pdb
-                # pdb.set_trace()
                 nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :]
                 hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
                 target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:, :] # target subbands [B,27,T] 
 
+                ##
+                hr = self.pqmf_fb.synthesis(torch.cat((nb, target_subbands), dim=1), delay=0, length=hr.shape[-1]) # [B,T]
+                ##
+                
                 x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
                 x_hat_full = self.pqmf_fb.synthesis(x_hat, delay=0, length=hr.shape[-1])  # PQMF Synthesis
-
-                ## new hr
-                hr = self.pqmf_fb.synthesis(torch.cat([nb.detach(), target_subbands], dim=1), delay=0, length=hr.shape[-1])
-                ##
-                # hr = hr.squeeze(1)
-                ##
+        
                 loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,
                                                                                                                             hf_estimate=hf_estimate, target_subbands=target_subbands)  
-                
+
                 loss_D, d_loss_dict, d_loss_report = self.loss_calculator.compute_discriminator_loss(hr, x_hat_full)
 
                 # Compute LSD and LSD_H metrics
@@ -206,7 +206,7 @@ class Trainer:
                 result['subband_loss'] += subband_loss_value.item() if subband_loss_value else 0
 
                 # Data logging
-                if i in [0,5,13]:  
+                if i in [0,5,33]:  
                     if not self.hr_logged:
                         self.unified_log({
                             f'audio_hr_{i}': hr.squeeze().cpu().numpy(),
@@ -275,7 +275,7 @@ class Trainer:
 
             for hr, lr, cond, _, _ in progress_bar:
                 global_step += 1
-                hr, lr, cond = hr.to(self.device), lr.to(self.device), cond.to(self.device)                
+                hr, lr, cond = hr.to(self.device), lr.to(self.device), cond.to(self.device)
                 step_result = self.train_step(hr, lr, cond, step=global_step, pretrain_step=self.config['train']['pretrain_step'])
 
                 # Sum up step losses for logging purposes

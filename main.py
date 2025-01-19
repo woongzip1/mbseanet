@@ -103,14 +103,13 @@ def prepare_dataloader(config_path):
     
     return train_dataloader, val_dataloader
 
-def main(args):
-    if_log_step = True
+def main(if_log_step):
+    args = parse_args()
     if_log_to_wandb = args.wandb
     config = load_config(args.config)
-
     torch.manual_seed(42)
     random.seed(42)
-   
+    
     if if_log_to_wandb: # if log
         wandb.init(project='mbseanet_a', entity='woongzip1', config=config, name=config['run_name'], notes=config['run_name'])
     
@@ -167,5 +166,4 @@ def main(args):
     trainer.train(num_epochs=config['train']['max_epochs'])
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    main(if_log_step=True)

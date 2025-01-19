@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torchaudio.transforms as T
 from torch.signal.windows import hann
 # from soundstream.balancer import *
-
+##
 class LossCalculator:
     def __init__(self, config, discriminator):
         self.discriminator = discriminator
@@ -39,22 +39,13 @@ class LossCalculator:
         plt.close()
         
     def compute_generator_loss(self, hr, x_hat_full, commitment_loss, codebook_loss, hf_estimate=None, target_subbands=None):
-        # self._save_figures(hr, x_hat_full)
-        # import pdb
-        # pdb.set_trace()
-        
-        hr = hr[...,self.num_taps//2:]
-        x_hat_full = x_hat_full[...,self.num_taps//2:]
+        hr = hr.squeeze(1) # for using gt       
         assert hr.shape == x_hat_full.shape, f"size mismatch- {hr.shape}, {x_hat_full.shape}" # [B,T]
-
-        # import pdb
-        # pdb.set_trace()
         
         # adv loss
         g_loss_dict, g_loss_report = self.discriminator.g_loss(hr, x_hat_full, adv_loss_type='hinge')
         
         # mel loss
-        # squeeze and careout for tensor shape
         ms_mel_loss_value = ms_mel_loss(hr, x_hat_full, **self.ms_mel_loss_config) # take care of tensor shape
 
         # subband loss
@@ -77,7 +68,6 @@ class LossCalculator:
     def compute_discriminator_loss(self, hr, x_hat_full):
         d_loss_dict, d_loss_report = self.discriminator.d_loss(hr, x_hat_full, adv_loss_type='hinge')
         loss_D = d_loss_dict.get('adv_d', 0)
-        # import pdb
         # pdb.set_trace()
         # loss_D = sum(d_loss_dict.values())
 
@@ -168,7 +158,7 @@ def ms_mel_loss(x, x_hat, n_fft_list=[32, 64, 128, 256, 512, 1024, 2048], hop_ra
                                     power=1.0, normalized=False, center=True).to(x.device)
         spg_to_mel = T.MelScale(n_mels=mel_bin, sample_rate=sr, n_stft=n_fft//2+1, f_min=fmin, f_max=fmax, norm="slaney", mel_scale="slaney").to(x.device)  
         
-        ## erase core bands considerations
+        ## erase core band considerations
         # x_spg = sig_to_spg(x) # [B,F,T]
         # f_start = int((core_cutoff / sr) * n_fft) + 1
         # x_spg[:,:f_start,:] = 0
@@ -177,10 +167,10 @@ def ms_mel_loss(x, x_hat, n_fft_list=[32, 64, 128, 256, 512, 1024, 2048], hop_ra
         # x_hat_spg = sig_to_spg(x_hat)
         # x_hat_spg[:,:f_start,:] = 0
         # x_hat_mel = spg_to_mel(x_hat_spg)
-        ################################
-        x_mel = spg_to_mel(sig_to_spg(x))           # [B,F,T]
+        #####
+        x_mel = spg_to_mel(sig_to_spg(x))  # [B, C, mels, T]
         x_hat_mel = spg_to_mel(sig_to_spg(x_hat))
-        
+
         log_term = torch.sum(torch.abs(x_mel.clamp(min=eps).pow(mel_power).log10() - x_hat_mel.clamp(min=eps).pow(mel_power).log10()))
         if reduction == 'mean':
             log_term /= torch.numel(x_mel)

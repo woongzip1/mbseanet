@@ -1,6 +1,6 @@
 random_seed: 0b011011
-run_name: "exp1"
-# RVQ
+run_name: "exp2_sbr"
+## downsample ratio is modified
 
 #-----------------------------------------------
 #1. Dataset
@@ -10,23 +10,23 @@ dataset:
   # ratio: 0.0005
   ratio: 1
   wb_train: [
-              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/FSD50K",
-              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/MUSDB18",
-              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/VCTK",
+              "/home/woongzip/Dataset_BESSL2/Splits/GT/FSD50K",
+              "/home/woongzip/Dataset_BESSL2/Splits/GT/MUSDB18",
+              "/home/woongzip/Dataset_BESSL2/Splits/GT/VCTK",
               ]
   nb_train: [
-              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/FSD50K",
-              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/MUSDB18",
-              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/VCTK",
+              "/home/woongzip/Dataset_BESSL2/Splits/SBR_20_Core/FSD50K",
+              "/home/woongzip/Dataset_BESSL2/Splits/SBR_20_Core/MUSDB18",
+              "/home/woongzip/Dataset_BESSL2/Splits/SBR_20_Core/VCTK",
               ]  
   wb_test: [
-              "/home/woongjib/Projects/USAC/USAC44_GT", 
+              "/home/woongzip/Dataset_BESSL2/Splits/USAC/USAC44_GT", 
               ]
   nb_test: [
-              "/home/woongjib/Projects/USAC/USAC44_20_core", 
+              "/home/woongzip/Dataset_BESSL2/Splits/USAC/USAC44_20_core", 
               ]
 
-  batch_size: 16
+  batch_size: 32
   seg_len: 0.9
   num_workers: 4
   start_index: 6 # num cores
@@ -36,7 +36,7 @@ dataset:
 #-----------------------------------------------
 
 generator:
-  type: MBSEANet_film
+  type: MBSEANet_film_sbr
   in_channels: 64 #FE
   min_dim: 32     #SEANet 56?
   visualize: False
@@ -45,7 +45,7 @@ generator:
   strides: [1,2,2,2]
   subband_num: 26
   fe_weight_path: False
-  out_bias: True
+  out_bias: False
 
 discriminator: 
   type: MultiBandSTFTDiscriminator
@@ -71,7 +71,7 @@ loss:
             reduction: mean
             loss_ratio: 1.0
             sr: 48000
-            fmin: 0 # for 4.5 kHz
+            fmin: 0
             core_cutoff: 4500
 
   lambda_mel_loss: 15
@@ -79,34 +79,43 @@ loss:
   lambda_adv_loss: 1
   lambda_commitment_loss: 0.25 # only for RVQ models
   lambda_codebook_loss: 1
-  lambda_subband_loss: 15
+  lambda_subband_loss: 0
 
 
 #-----------------------------------------------
 #4. Optimizer (ADAM)
 #-----------------------------------------------
-
 optim:
   learning_rate_ft: 0.0001
-  learning_rate: 0.001
-  scheduler_gamma: 0.999996
+  learning_rate: 2.0e-4
+  scheduler_gamma: 0.999997
   B1: 0.5
   B2: 0.9
-
+  
+use_tri_stage:
+  False
+# tri_scheduler:
+#   # for tri-tage
+#   init_lr: 1.0e-6
+#   final_lr: 1.0e-4
+#   peak_lr: 1.0e-6
+#   warmup_steps: 10000
+#   hold_steps: 300000
+#   decay_steps: 190000
+#   total_steps: 500000
 
 #-----------------------------------------------
 #Training
 #-----------------------------------------------
 train:
-  val_step: 1000 # 180분 10000 step
-  pretrain_step: 10000 # else False
-  ckpt_save_dir: "./ckpts/P4EXP1"
+  val_step: 2500 # 180분 10000 step
+  pretrain_step: False # else False
+  ckpt_save_dir: "./ckpts/exp2_b32_past"
   max_epochs: 40
-  
 
   # True if load from previous
   ckpt: False
-  ckpt_path: 
+  ckpt_path: "/home/woongzip/mbseanet/ckpts/P4EXP1_crop88/step_0.7k_lsdh_2.4142.pth"
 
 eval:
   eval_dir_audio: "/home/woongjib/Projects/BESSL__/outputs/P4EXP16_audio"
