@@ -113,6 +113,8 @@ def main(if_log_step):
     if if_log_to_wandb: # if log
         wandb.init(project='mbseanet_a', entity='woongzip1', config=config, name=config['run_name'], notes=config['run_name'])
     
+    print(config)
+    
     # Prepare dataloaders
     train_loader, val_loader = prepare_dataloader(args.config)
     

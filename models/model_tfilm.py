@@ -125,6 +125,7 @@ class MBSEANet_film(nn.Module):
     def __init__(self, min_dim=8, strides=[1,2,2,2], 
                  in_channels=16, subband_num=27, 
                  c_in=5, c_out=32, out_bias=True, visualize=False,
+                 rvq_config=None,
                  **kwargs):
         super().__init__()
         
@@ -136,13 +137,14 @@ class MBSEANet_film(nn.Module):
         from models.feature_encoder import ResNet18
         self.feature_encoder = ResNet18(in_channels=in_channels)
 
-        self.rvq = ResidualVectorQuantize(
-            input_dim=subband_num*32,        #
-            n_codebooks=10,         # 
-            codebook_size=1024,     # 
-            codebook_dim=8,       # 
-            quantizer_dropout=0.5  # 
-        )
+        if rvq_config:
+            self.rvq = ResidualVectorQuantize(
+                input_dim=rvq_config.get('input_dim', subband_num * 32),
+                n_codebooks=rvq_config.get('n_codebooks', 10),
+                codebook_size=rvq_config.get('codebook_size', 1024),
+                codebook_dim=rvq_config.get('codebook_dim', 8),
+                quantizer_dropout=rvq_config.get('quantizer_dropout', 0.5),
+            )
 
         # Feature Extracted SSL Layers
         self.subband_num = subband_num

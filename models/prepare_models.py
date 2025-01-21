@@ -54,12 +54,17 @@ def prepare_generator(config, MODEL_MAP):
     
     # Retrieve the parameters for the generator from the config
     model_params = {k: v for k, v in config['generator'].items() if k not in ['type']}
+    rvq_config = config['generator'].get('rvq_config', None)
     
     # Print information about the loaded model
     print("########################################")
     print(f"Instantiating {gen_type} Generator with parameters:")
     for key, value in model_params.items():
         print(f"  {key}: {value}")
+    if rvq_config:
+        print("  rvq_config:")
+        for key, value in rvq_config.items():
+            print(f"    {key}: {value}")
     print(f"  type: {gen_type}")
     generator = ModelClass(**model_params)
     print(f"Generator Parameters: {sum(p.numel() for p in generator.parameters() if p.requires_grad) / 1_000_000:.2f}M")

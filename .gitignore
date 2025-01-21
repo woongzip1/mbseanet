@@ -8,10 +8,13 @@ wandb/
 debug/
 
 __model_filmpy
+configs/_exp*.yaml
 configs/exp*.yaml
 configs/config_sbr.yaml
 !configs/config_template.yaml
 
+test_sbrmodel.ipynb
+_model_implement.ipynb
 *.pth
 
 ToDoList.txt

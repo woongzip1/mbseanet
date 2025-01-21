@@ -90,6 +90,7 @@ class Trainer:
     def train_step(self, hr, lr, cond, step, pretrain_step=0):
         self.generator.train()
         self.discriminator.train()
+
         ## analysis
         nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :] # num core bands [B,5,T]
         hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
@@ -191,8 +192,10 @@ class Trainer:
                 loss_D, d_loss_dict, d_loss_report = self.loss_calculator.compute_discriminator_loss(hr, x_hat_full)
 
                 # Compute LSD and LSD_H metrics
-                batch_lsd_l = lsd_batch(x_batch=hr.cpu(), y_batch=x_hat_full.cpu(), fs=48000, start=0, cutoff_freq=4500)
-                batch_lsd_h = lsd_batch(x_batch=hr.cpu(), y_batch=x_hat_full.cpu(), fs=48000, start=4500, cutoff_freq=24000)
+                cutoff_freq = self.config['generator']['c_in'] * 24000 / 32
+
+                batch_lsd_l = lsd_batch(x_batch=hr.cpu(), y_batch=x_hat_full.cpu(), fs=48000, start=0, cutoff_freq=cutoff_freq)
+                batch_lsd_h = lsd_batch(x_batch=hr.cpu(), y_batch=x_hat_full.cpu(), fs=48000, start=cutoff_freq, cutoff_freq=24000)
                 result['LSD_L'] += batch_lsd_l
                 result['LSD_H'] += batch_lsd_h
 

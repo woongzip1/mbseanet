@@ -95,7 +95,6 @@ class VectorQuantize(nn.Module):
         z_q = self.decode_code(indices)
         return z_q, indices
 
-
 class ResidualVectorQuantize(nn.Module):
     """
     Introduced in SoundStream: An end2end neural audio codec
