@@ -48,8 +48,8 @@ generator:
 
   rvq_config:
     input_dim: 832 # subbandnum * 32
-    n_codebooks: 12
-    codebook_size: 4096
+    n_codebooks: 16
+    codebook_size: 1024
     codebook_dim: 8
     quantizer_dropout: 0.5
 
