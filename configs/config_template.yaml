@@ -1,6 +1,7 @@
 random_seed: 0b011011
-run_name: "exp6"
-# sbr 12
+run_name: "exp8"
+# sbr 12 only features
+# cutoff 11000 (-15 bands)
 
 #-----------------------------------------------
 #1. Dataset
@@ -26,10 +27,12 @@ dataset:
               "/home/woongzip/dataset_12/USAC44_12_core", 
               ]
   
-  batch_size: 32
+  batch_size: 16
   seg_len: 0.95
   num_workers: 4
   start_index: 5 # num cores
+  high_index: 14
+  # 3750 - 11250: 10 bands, 320 f
  
 #-----------------------------------------------
 #2. Model
@@ -41,14 +44,14 @@ generator:
   min_dim: 64     #SEANet 56?
   visualize: False
   c_in: 5
-  c_out: 27
+  c_out: 10
   strides: [1,2,2,2]
-  subband_num: 27
+  subband_num: 10
   fe_weight_path: False
   out_bias: False
 
   rvq_config:
-    input_dim: 864 # subbandnum * 32
+    input_dim: 320 # subbandnum * 32
     n_codebooks: 11
     codebook_size: 1024
     codebook_dim: 8
@@ -60,12 +63,12 @@ discriminator:
       C: 32
       n_fft_list: [2048, 1024, 512]
       hop_len_list: [512, 256, 128]
-      band_split_ratio:
-          - [0.1875, 0.35] # check only 4.5 kHz above
-          - [0.35, 0.5125] # 0.1 -> 0.1875
-          - [0.5125, 0.675]
-          - [0.675, 0.8375]
-          - [0.8375, 1.0]
+      band_split_ratio: # 0.15 - 0.45 / 0.06
+          - [0.15, 0.21] # check only 4.5 kHz above
+          - [0.21, 0.27] # 0.1 -> 0.1875
+          - [0.27, 0.33]
+          - [0.33, 0.39]
+          - [0.39, 0.45]
 
   PeriodDiscriminator_config:
       period_list: [2,3,5,7,11]
@@ -98,7 +101,7 @@ loss:
 #-----------------------------------------------
 optim:
   learning_rate_ft: 0.0001
-  learning_rate: 2.0e-4
+  learning_rate: 1.0e-4
   scheduler_gamma: 0.999996
   B1: 0.5
   B2: 0.9
@@ -119,15 +122,15 @@ use_tri_stage:
 #Training
 #-----------------------------------------------
 train:
-  val_step: 5000 # 180분 10000 step
+  val_step: 10000 # 180분 10000 step
   pretrain_step: False # else False
-  ckpt_save_dir: "./ckpts/exp6"
-  max_epochs: 40
+  ckpt_save_dir: "./ckpts/exp8"
+  max_epochs: 60
 
   # True if load from previous
   ckpt: False
   ckpt_path: "/home/woongjib/Projects/MBSEANet/ckpts/exp3/step_45.0k_lsdh_0.5441.pth"
 
 eval:
-  eval_dir_audio: "/home/woongjib/Projects/mbseanet_results/model_outputs/exp_45K"
+  eval_dir_audio: "/home/woongjib/Projects/mbseanet_results/model_outputs/exp8"
   eval_dir_speech: None
