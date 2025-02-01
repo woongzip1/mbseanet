@@ -170,7 +170,7 @@ class CustomDataset(Dataset):
         
         f_start = 1 + freqbin_size * start
         f_end = 1 + freqbin_size * (end+1)
-
+        
         extracted_spec = spec[:,f_start:f_end,:]
         if f_start == 1:
             extracted_spec = torch.cat((dc_line, extracted_spec),dim=1) # [C,F,T]

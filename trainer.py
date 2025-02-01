@@ -91,17 +91,21 @@ class Trainer:
         self.generator.train()
         self.discriminator.train()
 
+        
         ## analysis
         nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :] # num core bands [B,5,T]
         hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
-        target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:, :] # target subbands [B,27,T] 
+        target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:self.config['generator']['c_in']+self.config['generator']['c_out'], :] # target subbands [B,27,T] 
         
         ##### synthesis #####
         # import pdb
         # pdb.set_trace()
-        hr = self.pqmf_fb.synthesis(torch.cat((nb, target_subbands), dim=1), delay=0, length=hr.shape[-1]) # [B,T]
+        _b,_f1,_l = nb.shape
+        _b,_f2,_l = target_subbands.shape
+        freq_zeros = torch.zeros(_b,32-_f1-_f2,_l).to(nb.device)
+        hr = self.pqmf_fb.synthesis(torch.cat((nb, target_subbands, freq_zeros), dim=1), delay=0, length=hr.shape[-1]) # [B,T]
         ###### #####
-        x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
+        x_hat = torch.cat((nb.detach(), hf_estimate, freq_zeros), dim=1)
         x_hat_full = self.pqmf_fb.synthesis(x_hat, delay=0, length=hr.shape[-1])  # PQMF Synthesis
 
         if self.config['loss']['lambda_subband_loss'] == 0:
@@ -112,7 +116,7 @@ class Trainer:
                                                                                                     hf_estimate=hf_estimate, target_subbands=target_subbands)  
         
         #### for gradient exploding ####
-        if ms_mel_loss_value > 10:
+        if ms_mel_loss_value > 50:
             print("loss_G:", loss_G)
             print("loss_mel:", ms_mel_loss_value)
             print("commitment", commitment_loss)
@@ -177,13 +181,20 @@ class Trainer:
                 lr, hr, cond = lr.to(self.device), hr.to(self.device), cond.to(self.device)
                 nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :]
                 hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
-                target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:, :] # target subbands [B,27,T] 
+                target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:self.config['generator']['c_in']+self.config['generator']['c_out'], :] # target subbands [B,27,T] 
 
+                ##### synthesis #####
+                _b,_f1,_l = nb.shape
+                _b,_f2,_l = target_subbands.shape
+                freq_zeros = torch.zeros(_b,32-_f1-_f2,_l).to(nb.device)
+                hr = self.pqmf_fb.synthesis(torch.cat((nb, target_subbands, freq_zeros), dim=1), delay=0, length=hr.shape[-1]) # [B,T]
                 ##
-                hr = self.pqmf_fb.synthesis(torch.cat((nb, target_subbands), dim=1), delay=0, length=hr.shape[-1]) # [B,T]
                 ##
+                ##
+                # import pdb
+                # pdb.set_trace()
                 
-                x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
+                x_hat = torch.cat((nb.detach(), hf_estimate, freq_zeros), dim=1)
                 x_hat_full = self.pqmf_fb.synthesis(x_hat, delay=0, length=hr.shape[-1])  # PQMF Synthesis
         
                 loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(hr, x_hat_full, commitment_loss, codebook_loss,

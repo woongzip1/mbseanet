@@ -1,6 +1,6 @@
 random_seed: 0b011011
-run_name: "exp3_mpd"
-## downsample ratio is modified
+run_name: "exp6"
+# sbr 12
 
 #-----------------------------------------------
 #1. Dataset
@@ -10,25 +10,26 @@ dataset:
   # ratio: 0.0005
   ratio: 1
   wb_train: [
-              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/FSD50K",
-              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/MUSDB18",
-              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/VCTK",
+              "/home/woongzip/dataset_12/GT/FSD50K",
+              "/home/woongzip/dataset_12/GT/MUSDB18",
+              "/home/woongzip/dataset_12/GT/VCTK",
               ]
   nb_train: [
-              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/FSD50K",
-              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/MUSDB18",
-              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_20_Core/VCTK",
+              "/home/woongzip/dataset_12/SBR_12_Core/FSD50K",
+              "/home/woongzip/dataset_12/SBR_12_Core/MUSDB18",
+              "/home/woongzip/dataset_12/SBR_12_Core/VCTK",
               ]  
   wb_test: [
-              "/home/woongjib/Projects/USAC/USAC44_GT", 
+              "/home/woongzip/dataset_12/USAC44_GT", 
               ]
   nb_test: [
-              "/home/woongjib/Projects/USAC/USAC44_20_core", 
+              "/home/woongzip/dataset_12/USAC44_12_core", 
               ]
-  batch_size: 16
-  seg_len: 0.9
+  
+  batch_size: 32
+  seg_len: 0.95
   num_workers: 4
-  start_index: 6 # num cores
+  start_index: 5 # num cores
  
 #-----------------------------------------------
 #2. Model
@@ -37,18 +38,18 @@ dataset:
 generator:
   type: MBSEANet_film
   in_channels: 64 #FE
-  min_dim: 32     #SEANet 56?
+  min_dim: 64     #SEANet 56?
   visualize: False
-  c_in: 6
-  c_out: 26
+  c_in: 5
+  c_out: 27
   strides: [1,2,2,2]
-  subband_num: 26
+  subband_num: 27
   fe_weight_path: False
   out_bias: False
 
   rvq_config:
-    input_dim: 832 # subbandnum * 32
-    n_codebooks: 16
+    input_dim: 864 # subbandnum * 32
+    n_codebooks: 11
     codebook_size: 1024
     codebook_dim: 8
     quantizer_dropout: 0.5
@@ -85,9 +86,9 @@ loss:
             core_cutoff: 4500
 
   lambda_mel_loss: 15
-  lambda_fm_loss: 2
-  lambda_adv_loss: 1
-  lambda_commitment_loss: 0.25 # only for RVQ models
+  lambda_fm_loss: 6
+  lambda_adv_loss: 3
+  lambda_commitment_loss: 0.5 # only for RVQ models
   lambda_codebook_loss: 1
   lambda_subband_loss: 0
 
@@ -98,7 +99,7 @@ loss:
 optim:
   learning_rate_ft: 0.0001
   learning_rate: 2.0e-4
-  scheduler_gamma: 0.999997
+  scheduler_gamma: 0.999996
   B1: 0.5
   B2: 0.9
   
@@ -118,9 +119,9 @@ use_tri_stage:
 #Training
 #-----------------------------------------------
 train:
-  val_step: 2500 # 180분 10000 step
+  val_step: 5000 # 180분 10000 step
   pretrain_step: False # else False
-  ckpt_save_dir: "./ckpts/exp3"
+  ckpt_save_dir: "./ckpts/exp6"
   max_epochs: 40
 
   # True if load from previous

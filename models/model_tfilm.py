@@ -277,7 +277,11 @@ class MBSEANet_film(nn.Module):
         
         # make sure input is multiple of downsampling
         # Feature extraction and reduction
-        embedding = self.feature_encoder(cond)
+        
+        # import pdb
+        # pdb.set_trace()
+        
+        embedding = self.feature_encoder(cond) # cond: [B,1,F,T]
         embedding = rearrange(embedding, 'b d f t -> b t (d f)')
         embedding = self.EmbeddingReduction(embedding)
         embedding = rearrange(embedding, 'b t f -> b f t')
