@@ -37,6 +37,25 @@ MODEL_MAP = {
     "MBSEANet_film_sbr": MBSEANet_film_sbr,
 }
 
+
+from scipy.signal import firwin, lfilter, freqz
+def lpf(y, sr=16000, cutoff=500, numtaps=200, window='hamming', figsize=(10,2)):
+    """ 
+    Applies FIR filter
+    cutoff freq: cutoff freq in Hz
+
+    """
+    nyquist = 0.5 * sr
+    normalized_cutoff = cutoff / nyquist
+    taps = firwin(numtaps=numtaps, cutoff=normalized_cutoff, window=window)
+    y_lpf = lfilter(taps, 1.0, y)
+    # y_lpf = np.convolve(y, taps, mode='same')
+    
+    # Length adjust
+    y_lpf = np.roll(y_lpf, shift=-numtaps//2)
+    
+    return y_lpf
+
 def load_model_params(model, checkpoint_path, device='cuda'):
     model = model.to(device)
     ckpt = torch.load(checkpoint_path)
@@ -44,8 +63,10 @@ def load_model_params(model, checkpoint_path, device='cuda'):
     print(f"Model loaded from {checkpoint_path}")
     return model
 
-def main(config, device, gt_base=None, save_files=True):
+def main(config, device, gt_base=None, save_files=True, low_pass=False, cutoff=None, quant_n=None):
     save_base_dir = config['eval']['eval_dir_audio']
+    if quant_n is not None:
+        save_base_dir = f"{save_base_dir}_Q{quant_n}"
     os.makedirs(save_base_dir, exist_ok=True)
 
     _, val_loader = prepare_dataloader(args.config)
@@ -85,8 +106,17 @@ def main(config, device, gt_base=None, save_files=True):
             x_hat = torch.cat((nb.detach(), hf_estimate, freq_zeros), dim=1)
             x_hat_full = pqmf_.synthesis(x_hat, delay=0, length=hr.shape[-1])  # PQMF Synthesis
 
+            ## Low Pass Filter
+            if low_pass:
+                x_hat_full_lpf = lpf(x_hat_full.cpu().squeeze(), sr=48000, cutoff=cutoff,)
+                os.makedirs(f"{save_base_dir}_lpf", exist_ok=True)
+
             if save_files:
                 sf.write(f"{save_base_dir}/{name}.wav", x_hat_full.cpu().squeeze(), format="WAV", samplerate=48000)
+                
+                if low_pass:
+                    sf.write(f"{save_base_dir}_lpf/{name}.wav", x_hat_full_lpf.squeeze(), format="WAV", samplerate=48000)
+                
                 if gt_base is not None:
                     os.makedirs(gt_base, exist_ok=True)
                     sf.write(f"{gt_base}/{name}.wav", hr.cpu().squeeze(), format="WAV", samplerate=48000)
@@ -95,10 +125,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run inference with specified config.")
     parser.add_argument("--config", type=str, required=True, help="Path to the configuration file.")
     parser.add_argument("--device", type=str, required=True, default='cuda')
+    parser.add_argument("--cutoff", type=int, required=True, )
+    parser.add_argument("--quant_n", type=int, required=False, default=None)
+    
     args = parser.parse_args()
 
     config = load_config(args.config)
     device = args.device
-    gt_base = "/home/woongjib/Projects/mbseanet_results/ground_truth/exp1_gt"
+    gt_base = "/home/woongjib/Projects/mbseanet_results/ground_truth/exp6_gt"
+    # gt_base None for not saving
     
-    main(config, device, gt_base=None, save_files=True)
+    print(args.quant_n)
+    main(config, device, gt_base=None, save_files=True, low_pass=True, cutoff=args.cutoff, quant_n=args.quant_n)

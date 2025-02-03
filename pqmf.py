@@ -12,7 +12,7 @@ import scipy.signal.windows as windows
 
 PI = math.pi
 class PQMF(nn.Module):
-    def __init__(self, num_subbands=32, num_taps=513, cutoff_ratio=None, beta=9):
+    def __init__(self, num_subbands=32, num_taps=512, cutoff_ratio=None, beta=9):
         super().__init__()
 
         # Attributes
@@ -77,6 +77,7 @@ class PQMF(nn.Module):
         x = F.pad(x, pad_input, 'constant', 0.)
         # print("Pad Size", pad_input)
 
+        # make multiple of stride
         pad_downsampling = ((self.num_subbands - (x.size(1) % self.num_subbands))
                             % self.num_subbands)
         
@@ -90,7 +91,6 @@ class PQMF(nn.Module):
                 bias=None,
                 stride=self.num_subbands)   # [B, num_subbands, T // num_subbands]
         # print("Pad Size", y.shape)
-
 
         # Squeezing (if required)
         if need_squeezing:

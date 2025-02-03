@@ -176,6 +176,17 @@ class CausalConv1d(nn.Conv1d):
     def forward(self, x):
         return self._conv_forward(F.pad(x, [self.causal_padding, 0]), self.weight, self.bias)
 
+# class CausalConv1d(nn.Conv1d):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         # self.causal_padding = self.dilation[0] * (self.kernel_size[0] - 1) + 1 - self.stride[0]
+#         self.causal_padding = self.dilation[0] * (self.kernel_size[0] - 1)
+
+#     def forward(self, x):
+#         x = F.pad(x, (self.causal_padding, 0))
+#         return super().forward(x)
+#         # return self._conv_forward(F.pad(x, [self.causal_padding, 0]), self.weight, self.bias)
+        
 class CausalConv2d(nn.Conv2d):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

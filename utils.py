@@ -27,6 +27,9 @@ def draw_spec(x,
     stft = librosa.stft(x, n_fft=n_fft, hop_length=hop_len, win_length=win_len)
     stft = 20 * np.log10(np.clip(np.abs(stft), a_min=1e-8, a_max=None))
 
+    r=5
+    stft[...,100-r:100+r] = -50
+    
     plt.imshow(stft,
                aspect='auto', cmap=cmap, vmin=vmin, vmax=vmax,
                origin='lower', extent=[0, len(x) / sr, 0, sr//2])

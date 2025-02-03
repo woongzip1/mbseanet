@@ -271,7 +271,7 @@ class MBSEANet_film(nn.Module):
         
         return padded_x
     
-    def forward(self, x, cond):
+    def forward(self, x, cond, n_quantizers=None):
         # x, prev, post = self._crop_signal_len(x, crop_len=8)
         x, front_pad, back_pad = self._adjust_signal_len(x)
         
@@ -283,11 +283,16 @@ class MBSEANet_film(nn.Module):
         
         embedding = self.feature_encoder(cond) # cond: [B,1,F,T]
         embedding = rearrange(embedding, 'b d f t -> b t (d f)')
+        # print("EMBEDDINGSHAPE", embedding.shape)
+
         embedding = self.EmbeddingReduction(embedding)
         embedding = rearrange(embedding, 'b t f -> b f t')
+        # print("EMBEDDINGSHAPE", embedding.shape)
 
         # Residual vector quantization (RVQ)
-        embedding, codes, latents, commitment_loss, codebook_loss = self.rvq(embedding)
+        # import pdb
+        # pdb.set_trace()
+        embedding, codes, latents, commitment_loss, codebook_loss = self.rvq(embedding, n_quantizers=n_quantizers)
         embedding = rearrange(embedding, 'b f t -> b t f')
 
         # Skip connections
