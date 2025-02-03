@@ -73,12 +73,16 @@ def main(config, device, gt_base=None, save_files=True):
             ## Analysis
             nb = pqmf_.analysis(lr)[:, :config['generator']['c_in'], :] # core [B,5,T]
             hf_estimate, commitment_loss, codebook_loss = model(nb, cond)
-            target_subbands = pqmf_.analysis(hr)[:, config['generator']['c_in']:, :] # target subbands [B,27,T] 
+            target_subbands = pqmf_.analysis(hr)[:, config['generator']['c_in']:config['generator']['c_in']+config['generator']['c_out'], :] # target subbands [B,27,T] 
 
             ## BWE target
-            # hr = pqmf_.synthesis(torch.cat((nb, target_subbands), dim=1), delay=0, length=hr.shape[-1]) # [B,T]
-
-            x_hat = torch.cat((nb.detach(), hf_estimate), dim=1)
+            _b,_f1,_l = nb.shape
+            _b,_f2,_l = target_subbands.shape
+            freq_zeros = torch.zeros(_b,32-_f1-_f2,_l).to(nb.device)
+            # hr = pqmf_.synthesis(torch.cat((nb, target_subbands, freq_zeros), dim=1), delay=0, length=hr.shape[-1]) # [B,T]
+            ###########
+            
+            x_hat = torch.cat((nb.detach(), hf_estimate, freq_zeros), dim=1)
             x_hat_full = pqmf_.synthesis(x_hat, delay=0, length=hr.shape[-1])  # PQMF Synthesis
 
             if save_files:

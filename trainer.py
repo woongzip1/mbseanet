@@ -91,7 +91,6 @@ class Trainer:
         self.generator.train()
         self.discriminator.train()
 
-        
         ## analysis
         nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :] # num core bands [B,5,T]
         hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)

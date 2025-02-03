@@ -7,6 +7,8 @@ wandb/
 
 debug/
 
+inference_bash.sh
+
 __model_filmpy
 configs/_exp*.yaml
 configs/exp*.yaml
