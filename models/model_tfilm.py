@@ -153,7 +153,6 @@ class MBSEANet_film(nn.Module):
         if use_sfm:
             self.SFMprojection = nn.Linear(self.subband_num, 32) # 32-dim representation
             self.subband_num = self.subband_num + 1
-            pdb.set_trace()
 
         # Encoder blocks and FiLM layers combined
         self.encoder_with_film = nn.ModuleList([

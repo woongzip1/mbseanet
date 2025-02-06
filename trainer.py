@@ -181,10 +181,13 @@ class Trainer:
         result = {key: 0 for key in ['adv_g', 'fm', 'loss_D', 'ms_mel_loss', 'commitment_loss', 'codebook_loss', 'LSD_L', 'LSD_H', 'subband_loss']}
         
         with torch.no_grad():
-            for i, (hr, lr, cond, _, _) in enumerate(tqdm(self.val_loader, desc='Validation')):
-                lr, hr, cond = lr.to(self.device), hr.to(self.device), cond.to(self.device)
+            for i, (hr, lr, cond, _, sfm) in enumerate(tqdm(self.val_loader, desc='Validation')):
+                lr, hr, cond, sfm = lr.to(self.device), hr.to(self.device), cond.to(self.device), sfm.to(self.device)
                 nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :]
-                hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
+                if self.use_sfm:
+                    hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond, sfm)
+                else:
+                    hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
                 target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:self.config['generator']['c_in']+self.config['generator']['c_out'], :] # target subbands [B,27,T] 
 
                 ##### synthesis #####
