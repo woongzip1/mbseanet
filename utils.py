@@ -6,6 +6,9 @@ import torch
 import wandb
 from scipy.signal import stft
 
+def count_model_params(model):
+    print(f"{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1_000_000:.2f}M")
+    
 def plot_signals(x, x_hat, range=[10000,15000],FIGSIZE=(10,2), diff=0.01):
     plt.figure(figsize=FIGSIZE)
     plt.plot(x, label='gt')

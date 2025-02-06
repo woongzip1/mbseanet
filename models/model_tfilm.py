@@ -136,7 +136,10 @@ class MBSEANet_film(nn.Module):
 
         ## Load SSL model
         from models.feature_encoder import ResNet18
-        self.feature_encoder = ResNet18(in_channels=in_channels)
+        self.feature_encoder = ResNet18(in_channels=in_channels,
+                                        sfm_channels=subband_num,
+                                        use_sfm=use_sfm,
+                                        )
 
         if rvq_config:
             self.rvq = ResidualVectorQuantize(
@@ -150,9 +153,6 @@ class MBSEANet_film(nn.Module):
         # Feature Extracted SSL Layers
         self.subband_num = subband_num
         self.EmbeddingReduction = FeatureReduction(self.subband_num, D=in_channels*8)
-        if use_sfm:
-            self.SFMprojection = nn.Linear(self.subband_num, 32) # 32-dim representation
-            self.subband_num = self.subband_num + 1
 
         # Encoder blocks and FiLM layers combined
         self.encoder_with_film = nn.ModuleList([
@@ -285,7 +285,7 @@ class MBSEANet_film(nn.Module):
         # import pdb
         # pdb.set_trace()
         
-        embedding = self.feature_encoder(cond) # cond: [B,1,F,T]
+        embedding = self.feature_encoder(cond, sfm_embedding) # cond: [B,1,F,T]
         embedding = rearrange(embedding, 'b d f t -> b t (d f)')
         # print("EMBEDDINGSHAPE", embedding.shape)
 
@@ -293,12 +293,12 @@ class MBSEANet_film(nn.Module):
         embedding = rearrange(embedding, 'b t f -> b f t')
         # print("EMBEDDINGSHAPE", embedding.shape)
 
-        if self.use_sfm:
-            sfm_embedding = rearrange(sfm_embedding, 'b f t -> b t f')
-            sfm_embedding = self.SFMprojection(sfm_embedding) # [B,F,T]
-            sfm_embedding = rearrange(sfm_embedding, 'b t f -> b f t')
+        # if self.use_sfm:
+            # sfm_embedding = rearrange(sfm_embedding, 'b f t -> b t f')
+            # sfm_embedding = self.SFMprojection(sfm_embedding) # [B,F,T]
+            # sfm_embedding = rearrange(sfm_embedding, 'b t f -> b f t')
+        # embedding = torch.concat([embedding, sfm_embedding], dim=-2) # [B,F1+F2,T]
         
-        embedding = torch.concat([embedding, sfm_embedding], dim=-2) # [B,F1+F2,T]
         embedding, codes, latents, commitment_loss, codebook_loss = self.rvq(embedding, n_quantizers=n_quantizers)
         embedding = rearrange(embedding, 'b f t -> b t f')
 

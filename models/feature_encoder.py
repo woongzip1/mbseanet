@@ -67,11 +67,54 @@ class BasicBlock(nn.Module):
 
         return out
     ##### Modified ResNet for Feature Extraction
+# class ResNet(nn.Module):
+#     def __init__(self, block, layers, in_channels=64):
+#         super(ResNet, self).__init__()
+#         self.in_channels = in_channels
+#         self.bottleneckdim = in_channels
+#         self.conv1 = weight_norm(CausalConv2d(1, self.bottleneckdim, kernel_size=(7,7), stride=(2,1), bias=False))
+#         self.relu = nn.ReLU(inplace=True)
+#         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=(2,1), padding=1)
+
+#         # ResNet layers
+#         self.layer1 = self._make_layer(block, self.bottleneckdim, layers[0])
+#         self.layer2 = self._make_layer(block, self.bottleneckdim*2, layers[1], stride=(2,1))
+#         self.layer3 = self._make_layer(block, self.bottleneckdim*4, layers[2], stride=(2,1))
+#         self.layer4 = self._make_layer(block, self.bottleneckdim*8, layers[3], stride=(2,1), isfinal=True)
+
+#     def _make_layer(self, block, out_channels, blocks, stride=1, isfinal=False):
+#         downsample = None
+#         if stride != 1 : # Downsampling layer needs channel modification
+#             downsample = CausalConv2d(self.in_channels, out_channels,
+#                              kernel_size=1, stride=stride, bias=False)
+                        
+#         layers = []
+#         layers.append(block(self.in_channels, out_channels, stride, downsample, isfinal=isfinal))
+#         self.in_channels = out_channels
+#         for _ in range(1, blocks):
+#             layers.append(block(self.in_channels, out_channels))
+
+#         return nn.Sequential(*layers)
+
+#     def forward(self, x):
+#         x = self.conv1(x)
+#         x = self.relu(x)
+#         x = self.maxpool(x)
+
+#         x = self.layer1(x)
+#         x = self.layer2(x)
+#         x = self.layer3(x)
+#         x = self.layer4(x)
+
+#         return x
+###################
 class ResNet(nn.Module):
-    def __init__(self, block, layers, in_channels=64):
+    def __init__(self, block, layers, in_channels=64, sfm_channels=1, use_sfm=False, visualize=False):
         super(ResNet, self).__init__()
         self.in_channels = in_channels
         self.bottleneckdim = in_channels
+        self.use_sfm = use_sfm
+        
         self.conv1 = weight_norm(CausalConv2d(1, self.bottleneckdim, kernel_size=(7,7), stride=(2,1), bias=False))
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=(2,1), padding=1)
@@ -81,7 +124,13 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, self.bottleneckdim*2, layers[1], stride=(2,1))
         self.layer3 = self._make_layer(block, self.bottleneckdim*4, layers[2], stride=(2,1))
         self.layer4 = self._make_layer(block, self.bottleneckdim*8, layers[3], stride=(2,1), isfinal=True)
-
+        
+        if self.use_sfm:
+            self.film1 = FiLMLayer2D(n_channels=self.bottleneckdim, sfm_dim=sfm_channels, visualize=visualize)
+            self.film2 = FiLMLayer2D(n_channels=self.bottleneckdim, sfm_dim=sfm_channels, visualize=visualize)
+            self.film3 = FiLMLayer2D(n_channels=self.bottleneckdim*2, sfm_dim=sfm_channels, visualize=visualize)
+            self.film4 = FiLMLayer2D(n_channels=self.bottleneckdim*4, sfm_dim=sfm_channels, visualize=visualize)
+        
     def _make_layer(self, block, out_channels, blocks, stride=1, isfinal=False):
         downsample = None
         if stride != 1 : # Downsampling layer needs channel modification
@@ -96,21 +145,65 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x, sfm=None):
+        """
+        x: (B, 1, F, T) - Input spectrogram
+        sfm: (B, C_sfm, T) - Spectral Flatness Measure, only used if use_sfm=True
+        """
+        if self.use_sfm and sfm is None:
+            raise ValueError("use_sfm=True, but sfm is None. Please provide SFM input")
+        
         x = self.conv1(x)
         x = self.relu(x)
         x = self.maxpool(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+        # ResNet Layers with optional FiLM
+        layers = [self.layer1, self.layer2, self.layer3, self.layer4]
+        films = [self.film1, self.film2, self.film3, self.film4] if self.use_sfm else [None] * 4
 
+        for layer, film in zip(layers, films):
+            if film is not None and sfm is not None:
+                x = film(x, sfm)  # Apply FiLM if enabled
+            x = layer(x)  # Apply ResNet Layer
         return x
     
-def ResNet18(in_channels=64):
-    return ResNet(BasicBlock, [2, 2, 2, 2], in_channels)
+    
+def ResNet18(in_channels=64, sfm_channels=1, use_sfm=False, visualize=False):
+    return ResNet(BasicBlock, [2, 2, 2, 2], in_channels, sfm_channels=sfm_channels, use_sfm=use_sfm, visualize=visualize)
 
+from einops import rearrange
+class FiLMLayer2D(nn.Module):
+    def __init__(self, n_channels, sfm_dim, visualize=False):
+        """
+        n_channels: CNN Feature map's channel count (e.g., 64, 128, ...)
+        sfm_dim: The number of channels in SFM information (C_sfm)
+        """
+        super().__init__()
+        self.n_channels = n_channels
+        self.sfm_dim = sfm_dim
+        self.film_gen = nn.Linear(self.sfm_dim, 2*self.n_channels) # (C_s) → (2*n_channels)
+        self.visualize = visualize
+
+    def forward(self, x, sfm, ):
+        """
+        x: (B, C, F, T) - Feature Encoder's 2D CNN Feature Map
+        sfm: (B, C_sfm, T) - SFM information without a frequency axis
+        """
+        if self.visualize: print('\t', x.shape, "Feature Map Shape")
+
+        # Generate FiLM modulation parameters (gamma, beta)
+        sfm = rearrange(sfm, 'b c t -> b t c')  # (B,C_sfm,T) -> (B,T,C_sfm)
+        film_params = self.film_gen(sfm)        # (B,T,C_sfm) -> (B,T,2C)
+        film_params = rearrange(film_params, 'b t c-> b c t')  # (B,2C,T)
+        
+        # Separate gamma and beta
+        gamma = film_params[:, :self.n_channels,:,].unsqueeze(2)     # (B,2C,T) -> (B,C,1,T)
+        beta = film_params[:, :self.n_channels, :,].unsqueeze(2)      # (B,2C,T) -> (B,C,1,T)
+        
+        # Apply FiLM
+        x = gamma * x + beta
+        return x
+    
 ## Conv-ReLU-Conv with Residual Connection
 class ResBlock(nn.Module):
     def __init__(self, n_ch):
@@ -207,5 +300,13 @@ class CausalConv2d(nn.Conv2d):
         # print(f"Frequency Padding (F): top={self.frequency_padding_top}, bottom={self.frequency_padding_bottom}")
         x = F.pad(x, [self.temporal_padding, 0, self.frequency_padding_top, self.frequency_padding_bottom])
         return self._conv_forward(x, self.weight, self.bias)
+
+def main():
+    ## usage
+    film_layer = FiLMLayer2D(n_channels=32, sfm_dim=10)
+    feature_map = torch.rand(1,32,512,22)
+    sfm = torch.rand(1,10,22)
+    out = film_layer(feature_map,sfm)
+    print(out.shape)
 
 
