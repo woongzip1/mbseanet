@@ -93,7 +93,7 @@ def main(config, device, gt_base=None, save_files=True, low_pass=False, cutoff=N
 
             ## Analysis
             nb = pqmf_.analysis(lr)[:, :config['generator']['c_in'], :] # core [B,5,T]
-            hf_estimate, commitment_loss, codebook_loss = model(nb, cond)
+            hf_estimate, commitment_loss, codebook_loss = model(nb, cond, n_quantizers=quant_n)
             target_subbands = pqmf_.analysis(hr)[:, config['generator']['c_in']:config['generator']['c_in']+config['generator']['c_out'], :] # target subbands [B,27,T] 
 
             ## BWE target
@@ -132,8 +132,11 @@ if __name__ == "__main__":
 
     config = load_config(args.config)
     device = args.device
-    gt_base = "/home/woongjib/Projects/mbseanet_results/ground_truth/exp6_gt"
+    gt_base = "/home/woongjib/Projects/mbseanet_results/ground_truth/exp1_gt"
     # gt_base None for not saving
     
     print(args.quant_n)
-    main(config, device, gt_base=None, save_files=True, low_pass=True, cutoff=args.cutoff, quant_n=args.quant_n)
+    main(config, device, gt_base=None, save_files=True, low_pass=False, cutoff=args.cutoff, quant_n=args.quant_n)
+    
+    
+    """ python inference.py --config configs/exp4.yaml --device 'cuda' --cutoff 15500 """

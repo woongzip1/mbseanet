@@ -54,6 +54,8 @@ def prepare_generator(config, MODEL_MAP):
     
     # Retrieve the parameters for the generator from the config
     model_params = {k: v for k, v in config['generator'].items() if k not in ['type']}
+    model_params['use_sfm'] = config['dataset']['use_sfm']
+
     rvq_config = config['generator'].get('rvq_config', None)
     
     # Print information about the loaded model

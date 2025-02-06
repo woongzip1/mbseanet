@@ -64,7 +64,8 @@ def prepare_dataloader(config_path):
         seg_len=config['dataset']['seg_len'], 
         mode="train",
         start_index=config['dataset']['start_index'], 
-        high_index=config['dataset']['high_index']
+        high_index=config['dataset']['high_index'],
+        use_sfm=config['dataset']['use_sfm']
     )
 
     val_dataset = CustomDataset(
@@ -73,7 +74,8 @@ def prepare_dataloader(config_path):
         seg_len=config['dataset']['seg_len'], 
         mode="val",
         start_index=config['dataset']['start_index'], 
-        high_index=config['dataset']['high_index']
+        high_index=config['dataset']['high_index'],
+        use_sfm=config['dataset']['use_sfm']
     )
     
     # Optionally split train data

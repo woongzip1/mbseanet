@@ -17,7 +17,7 @@ class CustomDataset(Dataset):
                  "/mnt/hdd/Dataset/MUSDB18_MP3_8k"],
                  """
     def __init__(self, path_dir_nb, path_dir_wb, seg_len=0.9, sr=48000, mode="train", 
-                 start_index=5, high_index=31,):
+                 start_index=5, high_index=31, use_sfm=False):
         assert isinstance(path_dir_nb, list), "PATH must be a list"
 
         self.seg_len = seg_len
@@ -25,7 +25,8 @@ class CustomDataset(Dataset):
         self.sr = sr
         self.high_index = high_index
         self.start_index = start_index
-
+        self.use_sfm = use_sfm
+        
         paths_wav_wb = []
         paths_wav_nb = []
         self.labels = []
@@ -98,15 +99,20 @@ class CustomDataset(Dataset):
         else:
             sys.exit(f"unsupported mode! (train/val)")
 
-        # Compute Spectrogram from wideband
-        spec = self.get_log_spectrogram(wav_wb)
-        spec = self.normalize_spec(spec)
-
-        # Extract Subbands from WB spectrogram
-        spec = self.extract_subband(spec, start=self.start_index, end=self.high_index) # start:5 : 3750Hz
+        if self.use_sfm:
+            spec = self.get_spectrogram(wav_wb, power=1.0, log_scale=False)
+            spec = self.extract_subband(spec, start=self.start_index, end=self.high_index)
+            sfm = self.extract_sfm(spec)        # sfm
+            spec = spec.pow(2.0)
+            spec = ta.transforms.AmplitudeToDB()(spec)
+            spec = self.normalize_spec(spec)    # normalized power spec
+            return wav_wb, wav_nb, spec, get_filename(path_wav_wb), sfm
+        else:
+            spec = self.get_spectrogram(wav_wb, power=2.0, log_scale=True) 
+            spec = self.normalize_spec(spec)
+            spec = self.extract_subband(spec, start=self.start_index, end=self.high_index) # start:5 : 3750Hz
 
         return wav_wb, wav_nb, spec, get_filename(path_wav_wb)[0], label
-        # return wav_wb, wav_nb, spec, path_wav_wb, label
 
     @staticmethod
     def ensure_length(wav, target_length):
@@ -127,7 +133,7 @@ class CustomDataset(Dataset):
         return wav
 
     @staticmethod
-    def get_log_spectrogram(waveform, N=2048):
+    def get_spectrogram(waveform, N=2048, power=2.0, log_scale=True):
         n_fft = 2048
         hop_length = 2048 
         win_length = 2048
@@ -140,13 +146,14 @@ class CustomDataset(Dataset):
             n_fft=n_fft, 
             hop_length=hop_length, 
             win_length=win_length, 
-            power=2.0,
+            power=power,
             center=False,
         )(waveform)
 
-        # return spectrogram[:, :]  
-        log_spectrogram = ta.transforms.AmplitudeToDB()(spectrogram)
-        return log_spectrogram  
+        if log_scale:
+            spectrogram = ta.transforms.AmplitudeToDB()(spectrogram)
+            
+        return spectrogram  
 
     def normalize_spec(self, spec):
         norm_mean = -42.61
@@ -178,3 +185,16 @@ class CustomDataset(Dataset):
         # print(f_start/1024 * 24000, f_end/1024 * 24000)
         return extracted_spec # C, F, T
 
+    def extract_sfm(self, S, eps=1e-8):
+        C,F,T = S.shape # unbatched input
+        S = torch.abs(S)
+        num_bands = F // 32  
+        S = S.view(C, num_bands, 32, -1)  # [C,F,T] → [C,F//32,32,T]
+        
+        geometric_mean = torch.exp(torch.mean(torch.log(S + eps), dim=-2)) # Freq-axis pooling
+        arithmetic_mean = torch.mean(S, dim=-2)  
+        
+        sfm_bands = geometric_mean / (arithmetic_mean + eps) 
+        sfm_bands = 10 * torch.log10(sfm_bands + eps).squeeze(1)
+        
+        return sfm_bands.squeeze(0)  # Shape: (F//32,T)

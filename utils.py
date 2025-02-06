@@ -28,7 +28,7 @@ def draw_spec(x,
     stft = 20 * np.log10(np.clip(np.abs(stft), a_min=1e-8, a_max=None))
 
     r=5
-    stft[...,100-r:100+r] = -50
+    # stft[...,100-r:100+r] = -50
     
     plt.imshow(stft,
                aspect='auto', cmap=cmap, vmin=vmin, vmax=vmax,

@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import pickle
 from einops import rearrange
 import pickle
+import pdb
 
 from models.modules import Conv1d,EncBlock,DecBlock
 from models.feature_encoder import AutoEncoder
@@ -81,7 +82,6 @@ class FiLMLayer(nn.Module):
             x = x[:, :, :original_length]
             if self.visualize:
                 print("Cropped Feature Map Shape:", x.shape,"\n")
-
         return x
 
 """
@@ -125,11 +125,12 @@ class MBSEANet_film(nn.Module):
     def __init__(self, min_dim=8, strides=[1,2,2,2], 
                  in_channels=16, subband_num=27, 
                  c_in=5, c_out=32, out_bias=True, visualize=False,
-                 rvq_config=None,
+                 rvq_config=None, use_sfm=False,
                  **kwargs):
         super().__init__()
         
         self.visualize = visualize
+        self.use_sfm = use_sfm
         self.downsampling_factor = np.prod(strides)
         self._initialize_weights()
 
@@ -149,24 +150,28 @@ class MBSEANet_film(nn.Module):
         # Feature Extracted SSL Layers
         self.subband_num = subband_num
         self.EmbeddingReduction = FeatureReduction(self.subband_num, D=in_channels*8)
+        if use_sfm:
+            self.SFMprojection = nn.Linear(self.subband_num, 32) # 32-dim representation
+            self.subband_num = self.subband_num + 1
+            pdb.set_trace()
 
         # Encoder blocks and FiLM layers combined
         self.encoder_with_film = nn.ModuleList([
             nn.Sequential(
                 EncBlock(min_dim * 2, strides[0]),
-                FiLMLayer(n_channels=min_dim * 2, subband_num=subband_num, visualize=visualize)
+                FiLMLayer(n_channels=min_dim * 2, subband_num=self.subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 4, strides[1]),
-                FiLMLayer(n_channels=min_dim * 4, subband_num=subband_num, visualize=visualize)
+                FiLMLayer(n_channels=min_dim * 4, subband_num=self.subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 8, strides[2]),
-                FiLMLayer(n_channels=min_dim * 8, subband_num=subband_num, visualize=visualize)
+                FiLMLayer(n_channels=min_dim * 8, subband_num=self.subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 16, strides[3]),
-                FiLMLayer(n_channels=min_dim * 16, subband_num=subband_num, visualize=visualize)
+                FiLMLayer(n_channels=min_dim * 16, subband_num=self.subband_num, visualize=visualize)
             )
         ])
 
@@ -177,7 +182,7 @@ class MBSEANet_film(nn.Module):
             kernel_size=7,
             stride=1,
         )
-        self.film_b1 = FiLMLayer(n_channels=min_dim * 16 // 4, subband_num=subband_num, visualize=visualize)
+        self.film_b1 = FiLMLayer(n_channels=min_dim * 16 // 4, subband_num=self.subband_num, visualize=visualize)
 
         self.conv_bottle2 = Conv1d(
             in_channels=min_dim * 16 // 4,
@@ -185,25 +190,25 @@ class MBSEANet_film(nn.Module):
             kernel_size=7,
             stride=1,
         )
-        self.film_b2 = FiLMLayer(n_channels=min_dim * 16, subband_num=subband_num, visualize=visualize)
+        self.film_b2 = FiLMLayer(n_channels=min_dim * 16, subband_num=self.subband_num, visualize=visualize)
 
         # Decoder blocks and FiLM layers combined
         self.decoder_with_film = nn.ModuleList([
             nn.Sequential(
                 DecBlock(min_dim * 8, strides[3]),
-                FiLMLayer(n_channels=min_dim * 8, subband_num=subband_num)
+                FiLMLayer(n_channels=min_dim * 8, subband_num=self.subband_num)
             ),
             nn.Sequential(
                 DecBlock(min_dim * 4, strides[2]),
-                FiLMLayer(n_channels=min_dim * 4, subband_num=subband_num)
+                FiLMLayer(n_channels=min_dim * 4, subband_num=self.subband_num)
             ),
             nn.Sequential(
                 DecBlock(min_dim * 2, strides[1]),
-                FiLMLayer(n_channels=min_dim * 2, subband_num=subband_num)
+                FiLMLayer(n_channels=min_dim * 2, subband_num=self.subband_num)
             ),
             nn.Sequential(
                 DecBlock(min_dim, strides[0]),
-                FiLMLayer(n_channels=min_dim, subband_num=subband_num)
+                FiLMLayer(n_channels=min_dim, subband_num=self.subband_num)
             )
         ])
 
@@ -271,7 +276,7 @@ class MBSEANet_film(nn.Module):
         
         return padded_x
     
-    def forward(self, x, cond, n_quantizers=None):
+    def forward(self, x, cond, sfm_embedding, n_quantizers=None):
         # x, prev, post = self._crop_signal_len(x, crop_len=8)
         x, front_pad, back_pad = self._adjust_signal_len(x)
         
@@ -289,9 +294,12 @@ class MBSEANet_film(nn.Module):
         embedding = rearrange(embedding, 'b t f -> b f t')
         # print("EMBEDDINGSHAPE", embedding.shape)
 
-        # Residual vector quantization (RVQ)
-        # import pdb
-        # pdb.set_trace()
+        if self.use_sfm:
+            sfm_embedding = rearrange(sfm_embedding, 'b f t -> b t f')
+            sfm_embedding = self.SFMprojection(sfm_embedding) # [B,F,T]
+            sfm_embedding = rearrange(sfm_embedding, 'b t f -> b f t')
+        
+        embedding = torch.concat([embedding, sfm_embedding], dim=-2) # [B,F1+F2,T]
         embedding, codes, latents, commitment_loss, codebook_loss = self.rvq(embedding, n_quantizers=n_quantizers)
         embedding = rearrange(embedding, 'b f t -> b t f')
 

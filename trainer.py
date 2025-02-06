@@ -36,6 +36,8 @@ class Trainer:
         self.lambda_fm_loss = config['loss']['lambda_fm_loss']
         self.lambda_adv_loss = config['loss']['lambda_adv_loss']
 
+        self.use_sfm = config['dataset']['use_sfm']
+
         self.scheduler_G = scheduler_G
         self.scheduler_D = scheduler_D
 
@@ -82,18 +84,21 @@ class Trainer:
                     f"{stage}/{key}": log,
                 }, step=epoch if epoch is not None else step)
 
-    def _forward_pass(self, lr, cond):
+    def _forward_pass(self, lr, cond, sfm=None):
         if self.lambda_codebook_loss != 0:
-            return self.generator(lr, cond) # three outputs
+            return self.generator(lr, cond, sfm) # three outputs
         return self.generator(lr, cond), 0, 0
 
-    def train_step(self, hr, lr, cond, step, pretrain_step=0):
+    def train_step(self, hr, lr, cond, step, sfm=None, pretrain_step=0):
         self.generator.train()
         self.discriminator.train()
 
         ## analysis
         nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :] # num core bands [B,5,T]
-        hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
+        if self.use_sfm:
+            hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond, sfm)
+        else:
+            hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
         target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:self.config['generator']['c_in']+self.config['generator']['c_out'], :] # target subbands [B,27,T] 
         
         ##### synthesis #####
@@ -286,10 +291,10 @@ class Trainer:
             train_result={}
             progress_bar = tqdm(self.train_loader, desc=f'Epoch {epoch}/{num_epochs}')
 
-            for hr, lr, cond, _, _ in progress_bar:
+            for hr, lr, cond, name, sfm in progress_bar:
                 global_step += 1
-                hr, lr, cond = hr.to(self.device), lr.to(self.device), cond.to(self.device)
-                step_result = self.train_step(hr, lr, cond, step=global_step, pretrain_step=self.config['train']['pretrain_step'])
+                hr, lr, cond, sfm= hr.to(self.device), lr.to(self.device), cond.to(self.device), sfm.to(self.device)
+                step_result = self.train_step(hr, lr, cond, step=global_step,  sfm=sfm,  pretrain_step=self.config['train']['pretrain_step'])
 
                 # Sum up step losses for logging purposes
                 for key, value in step_result.items():
