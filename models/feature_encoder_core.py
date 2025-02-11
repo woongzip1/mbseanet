@@ -91,7 +91,7 @@ class ResNet(nn.Module):
             assert core_condition.shape[-1] == x.shape[-1], "Condition must be aligned!"
             
         if self.use_sfm:
-            print(core_condition.shape, sfm_feature.shape)
+            # print(core_condition.shape, sfm_feature.shape)
             core_condition = torch.cat((core_condition, sfm_feature), dim=1)
             
         x = self.conv1(x)
@@ -104,7 +104,7 @@ class ResNet(nn.Module):
 
         for layer, film in zip(layers, films):
             if film is not None and core_condition is not None:
-                print(core_condition.shape)
+                # print(core_condition.shape)
                 x = film(x, core_condition)  # Apply FiLM if enabled
             x = layer(x)  # Apply ResNet Layer
         return x
