@@ -19,6 +19,7 @@ from trainer import Trainer
 from models.model import MBSEANet
 from models.model_tfilm import MBSEANet_film
 from models.model_tfilm_sbr import MBSEANet_film_sbr
+from models.model_tfilm_core import MBSEANet_film_core
 from models.prepare_models import prepare_generator, prepare_discriminator
 ## dataset
 from dataset import CustomDataset
@@ -35,6 +36,7 @@ MODEL_MAP = {
     "MBSEANet": MBSEANet,
     "MBSEANet_film": MBSEANet_film,
     "MBSEANet_film_sbr": MBSEANet_film_sbr,
+    "MBSEANet_film_core": MBSEANet_film_core,
 }
 
 def parse_args():

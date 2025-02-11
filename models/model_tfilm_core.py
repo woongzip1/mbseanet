@@ -93,11 +93,12 @@ y = model(x,cond)
 print(y.shape)
 """
 
-"""
-Input Shape: B x Patch x 6144
-Output Shape: B x Patch x 256 
-"""
+
 class FeatureReduction(nn.Module):
+    """
+    Input Shape: B x Patch x 8D
+    Output Shape: B x Patch x 32 
+    """
     def __init__(self, subband_num=10, D=512):
         super(FeatureReduction, self).__init__()
 
@@ -109,7 +110,6 @@ class FeatureReduction(nn.Module):
     def forward(self, embeddings):
         # embedding: B x Patch x 6144 (5120)
         ## input must be: B x T x (D F)
-
         outs = []
         for idx, layer in enumerate(self.layers):
             patch_embeddings = embeddings[:, :, idx*self.patch_len:(idx+1)*self.patch_len] # extract per subband
@@ -125,20 +125,23 @@ class MBSEANet_film(nn.Module):
     def __init__(self, min_dim=8, strides=[1,2,2,2], 
                  in_channels=16, subband_num=27, 
                  c_in=5, c_out=32, out_bias=True, visualize=False,
-                 rvq_config=None, use_sfm=False,
+                 rvq_config=None, use_sfm=False, use_core=False,
                  **kwargs):
         super().__init__()
         
         self.visualize = visualize
         self.use_sfm = use_sfm
+        self.use_core = use_core
         self.downsampling_factor = np.prod(strides)
         self._initialize_weights()
 
         ## Load SSL model
-        from models.feature_encoder import ResNet18
+        from models.feature_encoder_core import ResNet18
         self.feature_encoder = ResNet18(in_channels=in_channels,
-                                        sfm_channels=subband_num,
+                                        condition_channels=min_dim*4, # 4 x min_dim
+                                        use_condition=use_core,
                                         use_sfm=use_sfm,
+                                        sfm_channels=subband_num,
                                         )
 
         if rvq_config:
@@ -158,19 +161,15 @@ class MBSEANet_film(nn.Module):
         self.encoder_with_film = nn.ModuleList([
             nn.Sequential(
                 EncBlock(min_dim * 2, strides[0]),
-                FiLMLayer(n_channels=min_dim * 2, subband_num=self.subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 4, strides[1]),
-                FiLMLayer(n_channels=min_dim * 4, subband_num=self.subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 8, strides[2]),
-                FiLMLayer(n_channels=min_dim * 8, subband_num=self.subband_num, visualize=visualize)
             ),
             nn.Sequential(
                 EncBlock(min_dim * 16, strides[3]),
-                FiLMLayer(n_channels=min_dim * 16, subband_num=self.subband_num, visualize=visualize)
             )
         ])
 
@@ -181,7 +180,6 @@ class MBSEANet_film(nn.Module):
             kernel_size=7,
             stride=1,
         )
-        self.film_b1 = FiLMLayer(n_channels=min_dim * 16 // 4, subband_num=self.subband_num, visualize=visualize)
 
         self.conv_bottle2 = Conv1d(
             in_channels=min_dim * 16 // 4,
@@ -253,73 +251,43 @@ class MBSEANet_film(nn.Module):
         # print("SIGNAL ADJUST")
         return x, front_pad, back_pad
 
-    def _crop_signal_len(self, x, crop_len=8):
-        prev_x = x[:,:,:crop_len]
-        post_x = x[:,:,-crop_len:]
-        x = x[:, :, crop_len:-crop_len]
-        return x, prev_x, post_x
-    
     def _pad_signal_len(self, x, front_pad, back_pad):
-        # C_out = x.size(1)
-    
-        # prev = prev.repeat(1, C_out // prev.size(1) + 1, 1)  # Repeat channels to match C_out
-        # if prev.size(1) != C_out:
-        #     prev = prev[:, :C_out, :]  # Truncate excess channels if necessary
-
-        # post = post.repeat(1, C_out // post.size(1) + 1, 1)  # Repeat channels to match C_out
-        # if post.size(1) != C_out:
-        #     post = post[:, :C_out, :]  # Truncate excess channels if necessary
-
-        # Concatenate `prev`, `x`, `post`, and `padval`
         padded_x = torch.cat((front_pad, x, back_pad), dim=-1)  # Concatenate along time axis
-        
         return padded_x
     
-    def forward(self, x, cond, sfm_embedding, n_quantizers=None):
-        # x, prev, post = self._crop_signal_len(x, crop_len=8)
-        x, front_pad, back_pad = self._adjust_signal_len(x)
-        
+    def forward(self, x, stft_cond, sfm=None, n_quantizers=None):
         # make sure input is multiple of downsampling
-        # Feature extraction and reduction
-        
-        # import pdb
-        # pdb.set_trace()
-        
-        embedding = self.feature_encoder(cond, sfm_embedding) # cond: [B,1,F,T]
-        embedding = rearrange(embedding, 'b d f t -> b t (d f)')
-        # print("EMBEDDINGSHAPE", embedding.shape)
-
-        embedding = self.EmbeddingReduction(embedding)
-        embedding = rearrange(embedding, 'b t f -> b f t')
-        # print("EMBEDDINGSHAPE", embedding.shape)
-
-        # if self.use_sfm:
-            # sfm_embedding = rearrange(sfm_embedding, 'b f t -> b t f')
-            # sfm_embedding = self.SFMprojection(sfm_embedding) # [B,F,T]
-            # sfm_embedding = rearrange(sfm_embedding, 'b t f -> b f t')
-        # embedding = torch.concat([embedding, sfm_embedding], dim=-2) # [B,F1+F2,T]
-        
-        embedding, codes, latents, commitment_loss, codebook_loss = self.rvq(embedding, n_quantizers=n_quantizers)
-        embedding = rearrange(embedding, 'b f t -> b t f')
+        x, front_pad, back_pad = self._adjust_signal_len(x)
 
         # Skip connections
         skip = []
-        x = self.conv_in(x)
+        x = self.conv_in(x)     # [C_in,T] -> [D, T]
         skip.append(x)
 
         # if self.visualize:
             # print("Input Signal Length:", x.shape[2], "Fragment:", pad_len)
 
-        # Encoder with FiLM layers
-        for block in self.encoder_with_film:
+        # Encoder
+        for block in self.encoder_with_film: # [D, T] -> [16D, T/8], T=t/32
             x = block[0](x)  # EncBlock
-            x = block[1](x, embedding)  # FiLMLayer
             skip.append(x)
 
         # Bottleneck
-        x = self.conv_bottle1(x)
-        x = self.film_b1(x, embedding)
-        x = self.conv_bottle2(x)
+        h = self.conv_bottle1(x) # [B,16D,T/8] -> [B,4D,T/8], t/256
+        
+        #################### Condition Extraction & Quantization 
+        embedding = self.feature_encoder(stft_cond, h, sfm_feature=sfm) # cond: [B,1,F,L], embedding: [B,8D_e,F/32,L], L=t/2048=T/256
+        # print("EMBEDDINGSHAPE", embedding.shape)        
+        embedding = rearrange(embedding, 'b d f t -> b t (d f)')
+
+        embedding = self.EmbeddingReduction(embedding)
+        embedding = rearrange(embedding, 'b t f -> b f t')
+        
+        embedding, codes, latents, commitment_loss, codebook_loss = self.rvq(embedding, n_quantizers=n_quantizers)
+        embedding = rearrange(embedding, 'b f t -> b t f')
+        ####################
+        
+        x = self.conv_bottle2(h)
         x = self.film_b2(x, embedding)
 
         # Decoder with FiLM layers
@@ -328,14 +296,9 @@ class MBSEANet_film(nn.Module):
             x = x + skip_connection
             x = block[0](x)  # DecBlock
             x = block[1](x, embedding)  # FiLMLayer
-
         x = self.conv_out(x)
 
-        # padval = torch.zeros([x.size(0), x.size(1), pad_len]).to(x.device) # [B,C_out,T]
         front_pad = torch.zeros([x.size(0), x.size(1), front_pad]).to(x.device) 
         back_pad = torch.zeros([x.size(0), x.size(1), back_pad]).to(x.device)
-        # import pdb
-        # pdb.set_trace()
-        # x = self._pad_signal_len(x, prev, post, front_pad, back_pad)
         x = self._pad_signal_len(x, front_pad, back_pad)
         return x, commitment_loss, codebook_loss
