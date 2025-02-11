@@ -84,16 +84,21 @@ def main(config, device, gt_base=None, save_files=True, low_pass=False, cutoff=N
     bar = tqdm(val_loader)
 
     with torch.no_grad():
-        for hr, lr, cond, name, _ in bar:
+        for hr, lr, cond, name, sfm in bar:
             name = name[0]
-            lr, hr, cond = lr.to(device), hr.to(device), cond.to(device)
+            lr, hr, cond, sfm = lr.to(device), hr.to(device), cond.to(device), sfm.to(device)
             
             # import pdb
             # pdb.set_trace()
 
             ## Analysis
             nb = pqmf_.analysis(lr)[:, :config['generator']['c_in'], :] # core [B,5,T]
-            hf_estimate, commitment_loss, codebook_loss = model(nb, cond, n_quantizers=quant_n)
+            if config['dataset']['use_sfm']:
+                hf_estimate, commitment_loss, codebook_loss = model(nb, cond, sfm_embedding=sfm, n_quantizers=quant_n)                
+            elif config['loss']['lambda_commitment_loss'] == 0:
+                hf_estimate = model(nb, HR=None) 
+            else:
+                hf_estimate, commitment_loss, codebook_loss = model(nb, cond, sfm_embedding=None, n_quantizers=quant_n)
             target_subbands = pqmf_.analysis(hr)[:, config['generator']['c_in']:config['generator']['c_in']+config['generator']['c_out'], :] # target subbands [B,27,T] 
 
             ## BWE target
@@ -119,7 +124,9 @@ def main(config, device, gt_base=None, save_files=True, low_pass=False, cutoff=N
                 
                 if gt_base is not None:
                     os.makedirs(gt_base, exist_ok=True)
-                    sf.write(f"{gt_base}/{name}.wav", hr.cpu().squeeze(), format="WAV", samplerate=48000)
+                    # gt lpf save
+                    hr = lpf(hr.cpu().squeeze(), sr=48000, cutoff=cutoff)
+                    sf.write(f"{gt_base}/{name}.wav", hr.squeeze(), format="WAV", samplerate=48000)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run inference with specified config.")
@@ -132,11 +139,10 @@ if __name__ == "__main__":
 
     config = load_config(args.config)
     device = args.device
-    gt_base = "/home/woongjib/Projects/mbseanet_results/ground_truth/exp1_gt"
+    gt_base = "/home/woongjib/Projects/mbseanet_results/ground_truth/anchor"
     # gt_base None for not saving
     
     print(args.quant_n)
     main(config, device, gt_base=None, save_files=True, low_pass=False, cutoff=args.cutoff, quant_n=args.quant_n)
-    
     
     """ python inference.py --config configs/exp4.yaml --device 'cuda' --cutoff 15500 """

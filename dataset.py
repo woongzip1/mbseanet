@@ -106,7 +106,7 @@ class CustomDataset(Dataset):
             spec = spec.pow(2.0)
             spec = ta.transforms.AmplitudeToDB()(spec)
             spec = self.normalize_spec(spec)    # normalized power spec
-            return wav_wb, wav_nb, spec, get_filename(path_wav_wb), sfm
+            return wav_wb, wav_nb, spec, get_filename(path_wav_wb)[0], sfm
         else:
             spec = self.get_spectrogram(wav_wb, power=2.0, log_scale=True) 
             spec = self.normalize_spec(spec)

@@ -70,7 +70,7 @@ class MBSEANet(nn.Module):
             # print(pad_len) ### for debug
         return x, pad_len
     
-    def forward(self, x, HR=None):
+    def forward(self, x, HR=None,):
         x, pad_len = self._adjust_signal_len(x) # adjust length
         
         # conv in
