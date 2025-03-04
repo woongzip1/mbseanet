@@ -1,7 +1,5 @@
-random_seed: 0b011011
-run_name: "exp8"
-# sbr 12 only features
-# cutoff 11000 (-15 bands)
+run_name: "exp21"
+# 12 kbps, pqmf feature extraction
 
 #-----------------------------------------------
 #1. Dataset
@@ -11,22 +9,24 @@ dataset:
   # ratio: 0.0005
   ratio: 1
   wb_train: [
-              "/home/woongzip/dataset_12/GT/FSD50K",
-              "/home/woongzip/dataset_12/GT/MUSDB18",
-              "/home/woongzip/dataset_12/GT/VCTK",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/FSD50K",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/MUSDB18",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/GT/VCTK",
               ]
   nb_train: [
-              "/home/woongzip/dataset_12/SBR_12_Core/FSD50K",
-              "/home/woongzip/dataset_12/SBR_12_Core/MUSDB18",
-              "/home/woongzip/dataset_12/SBR_12_Core/VCTK",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_12_Core/FSD50K",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_12_Core/MUSDB18",
+              "/home/woongjib/Projects/Dataset_Crop/Splits/SBR_12_Core/VCTK",
               ]  
   wb_test: [
-              "/home/woongzip/dataset_12/USAC44_GT", 
+              "/home/woongjib/Projects/USAC/USAC44_GT", 
               ]
   nb_test: [
-              "/home/woongzip/dataset_12/USAC44_12_core", 
+              "/home/woongjib/Projects/USAC/USAC44_12_core", 
               ]
   
+  use_pqmf_features: True
+  use_sfm: False
   batch_size: 16
   seg_len: 0.95
   num_workers: 4
@@ -39,16 +39,21 @@ dataset:
 #-----------------------------------------------
 
 generator:
-  type: MBSEANet_film
-  in_channels: 64 #FE
+  type: MBSEANet_pqmf
+  in_channels: 0 #FE
   min_dim: 64     #SEANet 56?
   visualize: False
   c_in: 5
   c_out: 10
   strides: [1,2,2,2]
-  subband_num: 10
+  subband_num: False
   fe_weight_path: False
   out_bias: False
+
+  feature_encoder_config:
+    latent_dim: 512
+    strides: [2,2,4,4]
+    use_core: False
 
   rvq_config:
     input_dim: 320 # subbandnum * 32
@@ -122,15 +127,15 @@ use_tri_stage:
 #Training
 #-----------------------------------------------
 train:
-  val_step: 10000 # 180분 10000 step
+  val_step: 1 # 180분 10000 step
   pretrain_step: False # else False
-  ckpt_save_dir: "./ckpts/exp8"
+  ckpt_save_dir: "./ckpts/exp21"
   max_epochs: 60
 
   # True if load from previous
   ckpt: False
-  ckpt_path: "/home/woongjib/Projects/MBSEANet/ckpts/exp3/step_45.0k_lsdh_0.5441.pth"
+  ckpt_path: "/home/woongjib/Projects/MBSEANet/ckpts/exp21/step_260.0k_lsdh_0.4475.pth"
 
 eval:
-  eval_dir_audio: "/home/woongjib/Projects/mbseanet_results/model_outputs/exp8"
+  eval_dir_audio: "/home/woongjib/Projects/mbseanet_results/model_outputs/exp21"
   eval_dir_speech: None

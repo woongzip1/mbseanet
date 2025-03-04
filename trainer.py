@@ -84,7 +84,12 @@ class Trainer:
                     f"{stage}/{key}": log,
                 }, step=epoch if epoch is not None else step)
 
-    def _forward_pass(self, lr, cond, sfm=None):
+    def _forward_pass(self, lr, cond, hr=None, sfm=None):
+        if self.config['generator']['type'] == 'MBSEANet_pqmf':
+            import pdb
+            pdb.set_trace()
+            return self.generator(x=lr, hr=hr)
+        
         if self.lambda_codebook_loss != 0:
             return self.generator(lr, cond, sfm) # three outputs
         return self.generator(lr, cond), 0, 0
@@ -96,9 +101,9 @@ class Trainer:
         ## analysis
         nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :] # num core bands [B,5,T]
         if self.use_sfm:
-            hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond, sfm)
+            hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond, sfm, hr=hr)
         else:
-            hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
+            hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond, hr=hr)
         target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:self.config['generator']['c_in']+self.config['generator']['c_out'], :] # target subbands [B,27,T] 
         
         ##### synthesis #####
@@ -185,9 +190,9 @@ class Trainer:
                 lr, hr, cond, sfm = lr.to(self.device), hr.to(self.device), cond.to(self.device), sfm.to(self.device)
                 nb = self.pqmf_fb.analysis(lr)[:, :self.config['generator']['c_in'], :]
                 if self.use_sfm:
-                    hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond, sfm)
+                    hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond, sfm, hr=hr)
                 else:
-                    hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond)
+                    hf_estimate, commitment_loss, codebook_loss = self._forward_pass(nb, cond, hr=hr)
                 target_subbands = self.pqmf_fb.analysis(hr)[:, self.config['generator']['c_in']:self.config['generator']['c_in']+self.config['generator']['c_out'], :] # target subbands [B,27,T] 
 
                 ##### synthesis #####

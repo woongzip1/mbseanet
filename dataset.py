@@ -17,7 +17,7 @@ class CustomDataset(Dataset):
                  "/mnt/hdd/Dataset/MUSDB18_MP3_8k"],
                  """
     def __init__(self, path_dir_nb, path_dir_wb, seg_len=0.9, sr=48000, mode="train", 
-                 start_index=5, high_index=31, use_sfm=False):
+                 start_index=5, high_index=31, use_sfm=False, use_pqmf=False):
         assert isinstance(path_dir_nb, list), "PATH must be a list"
 
         self.seg_len = seg_len
@@ -26,6 +26,7 @@ class CustomDataset(Dataset):
         self.high_index = high_index
         self.start_index = start_index
         self.use_sfm = use_sfm
+        self.use_pqmf = use_pqmf
         
         paths_wav_wb = []
         paths_wav_nb = []
@@ -98,6 +99,9 @@ class CustomDataset(Dataset):
             # wav_wb = self.ensure_length(wav_wb, int(self.seg_len * self.sr))
         else:
             sys.exit(f"unsupported mode! (train/val)")
+
+        if self.use_pqmf:
+            return wav_wb, wav_nb, 0, get_filename(path_wav_wb)[0], label
 
         if self.use_sfm:
             spec = self.get_spectrogram(wav_wb, power=1.0, log_scale=False)

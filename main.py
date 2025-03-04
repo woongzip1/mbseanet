@@ -20,6 +20,8 @@ from models.model import MBSEANet
 from models.model_tfilm import MBSEANet_film
 from models.model_tfilm_sbr import MBSEANet_film_sbr
 from models.model_tfilm_core import MBSEANet_film as MBSEANet_film_core
+from models.model_pqmf import MBSEANet_pqmf 
+
 from models.prepare_models import prepare_generator, prepare_discriminator
 ## dataset
 from dataset import CustomDataset
@@ -37,6 +39,7 @@ MODEL_MAP = {
     "MBSEANet_film": MBSEANet_film,
     "MBSEANet_film_sbr": MBSEANet_film_sbr,
     "MBSEANet_film_core": MBSEANet_film_core,
+    "MBSEANet_pqmf": MBSEANet_pqmf,
 }
 
 def parse_args():
@@ -67,7 +70,8 @@ def prepare_dataloader(config_path):
         mode="train",
         start_index=config['dataset']['start_index'], 
         high_index=config['dataset']['high_index'],
-        use_sfm=config['dataset']['use_sfm']
+        use_sfm=config['dataset']['use_sfm'],
+        use_pqmf=config['dataset']['use_pqmf_features'],
     )
 
     val_dataset = CustomDataset(
@@ -77,7 +81,8 @@ def prepare_dataloader(config_path):
         mode="val",
         start_index=config['dataset']['start_index'], 
         high_index=config['dataset']['high_index'],
-        use_sfm=config['dataset']['use_sfm']
+        use_sfm=config['dataset']['use_sfm'],
+        use_pqmf=config['dataset']['use_pqmf_features'],
     )
     
     # Optionally split train data
