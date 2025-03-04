@@ -86,8 +86,6 @@ class Trainer:
 
     def _forward_pass(self, lr, cond, hr=None, sfm=None):
         if self.config['generator']['type'] == 'MBSEANet_pqmf':
-            import pdb
-            pdb.set_trace()
             return self.generator(x=lr, hr=hr)
         
         if self.lambda_codebook_loss != 0:
