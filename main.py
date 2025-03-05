@@ -161,9 +161,6 @@ def main(if_log_step):
         scheduler_G = lr_scheduler.ExponentialLR(optim_G, gamma=config['optim']['scheduler_gamma'])
         scheduler_D = lr_scheduler.ExponentialLR(optim_D, gamma=config['optim']['scheduler_gamma'])
 
-    import pdb
-    pdb.set_trace()
-
     # Trainer initialization
     trainer = Trainer(generator, discriminator, train_loader, val_loader, optim_G, optim_D, config, DEVICE, 
                       scheduler_G=scheduler_G, scheduler_D=scheduler_D, if_log_step=if_log_step, if_log_to_wandb=if_log_to_wandb)
