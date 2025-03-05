@@ -391,7 +391,7 @@ class STFTDiscriminator(DiscCore):
         ])
 
     def forward(self, x, return_features):        
-        x = torch.stft(x, n_fft=self.n_fft, hop_length=self.hop_len, return_complex=True)   # [B, freq_bins, #frames]
+        x = torch.stft(x, n_fft=self.n_fft, hop_length=self.hop_len, window=torch.hann_window(self.n_fft, device=x.device), return_complex=True)   # [B, freq_bins, #frames]
         x = x.unsqueeze(1)
         x = torch.cat([x.real, x.imag], dim=1)  # Concatenate real and imaginary parts in channel dimension: [B, 2, freq_bins, #frames]
 
@@ -640,7 +640,8 @@ class MultiBandSTFTDiscriminator(DiscCore):
     
     def stft_band_split(self, x):
         # STFT and rearrange
-        x_stft = torch.stft(x.squeeze(1), n_fft=self.n_fft, hop_length=self.hop_length, return_complex=True)   # [B, T] -> [B, F, T]
+        x_stft = torch.stft(x.squeeze(1), n_fft=self.n_fft, window=torch.hann_window(self.n_fft, device=x.device), 
+                            hop_length=self.hop_length, return_complex=True)   # [B, T] -> [B, F, T]
         x_stft = torch.view_as_real(x_stft)                 # [B, F, T, 2]
         x_stft = rearrange(x_stft, "b f t c -> b c t f")    # [B, 2, T, F]
         

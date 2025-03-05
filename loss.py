@@ -129,7 +129,7 @@ def ms_stft_loss(x, x_hat, n_fft_list=[16, 32, 64], hop_ratio=0.25, eps=1e-5):
     return total_loss/scale_factor, sc_loss/scale_factor, mag_loss/scale_factor
     
 def ms_mel_loss(x, x_hat, n_fft_list=[32, 64, 128, 256, 512, 1024, 2048], hop_ratio=0.25, 
-                mel_bin_list=[5, 10, 20, 40, 80, 160, 320], fmin=0, fmax=None, sr=44100, mel_power=1.0,
+                mel_bin_list=[5, 10, 20, 40, 80, 160, 320], fmin=0, fmax=None, sr=48000, mel_power=1.0,
                 core_cutoff = 4500,
                 eps=1e-5, reduction='mean', **kwargs):
     """
@@ -158,7 +158,7 @@ def ms_mel_loss(x, x_hat, n_fft_list=[32, 64, 128, 256, 512, 1024, 2048], hop_ra
                                     power=1.0, normalized=False, center=True).to(x.device)
         spg_to_mel = T.MelScale(n_mels=mel_bin, sample_rate=sr, n_stft=n_fft//2+1, f_min=fmin, f_max=fmax, norm="slaney", mel_scale="slaney").to(x.device)  
         
-        ## erase core band considerations
+        ## erase core band considerationsx.shap
         # x_spg = sig_to_spg(x) # [B,F,T]
         # f_start = int((core_cutoff / sr) * n_fft) + 1
         # x_spg[:,:f_start,:] = 0

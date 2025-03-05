@@ -166,13 +166,14 @@ def main(if_log_step):
                       scheduler_G=scheduler_G, scheduler_D=scheduler_D, if_log_step=if_log_step, if_log_to_wandb=if_log_to_wandb)
     
     if config['train']['ckpt']:
-        trainer.load_checkpoints(config['train']['ckpt_path'])    
+        trainer.load_checkpoints(config['train']['ckpt_path'])
     
     torch.manual_seed(42)
     random.seed(42)
     
     # Train
     warnings.filterwarnings("ignore", category=UserWarning, message="At least one mel filterbank has")
+    warnings.filterwarnings("ignore", category=UserWarning, message="Plan failed with a cudnnException")
     trainer.train(num_epochs=config['train']['max_epochs'])
 
 if __name__ == "__main__":
