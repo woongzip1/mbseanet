@@ -15,32 +15,21 @@ from models.quantize import ResidualVectorQuantize
 
 """
 ****** Temporal FiLMing ******
-
 n_channels: Number of Conv feature map channels
-
-do not input N x L x C
-
 x: Conv Feature Map (N x C x L)
-cond: SSL Condition (N x L/320 x 1024)
+cond: SSL Condition (N x L/320 x C_feat)
         --> N x #FramePatches x F
-
 output:  modulated feature map (N x C x L)
-
 """
 class FiLMLayer(nn.Module):
     def __init__(self, n_channels=10, latent_dim=512, visualize=False):
-        """ What does melpatch_num do ? """
         super().__init__()
         self.n_channels = n_channels # channels of conv layer
-        # 320: subband dim 
-        # self.latent_dim = 32*subband_num
         self.latent_dim = latent_dim
-        # 32: output of FeatureReduction layer
         self.film_gen = nn.Linear(self.latent_dim, 2*n_channels)
         self.visualize = visualize
 
     def forward(self, x, condition):
-
         ## X -> N C L
         ## Condi -> N L C
         subblock_num = condition.size(1)
@@ -60,6 +49,7 @@ class FiLMLayer(nn.Module):
         film_params = self.film_gen(condition)
         # if self.visualize: print(film_params.shape, "FiLM Generated Shape")
         film_params = rearrange(film_params, 'n l c -> n c l')
+        
         # Extract (ch x subblock_num) gamma and beta 
         gamma = film_params[:,:self.n_channels,:].unsqueeze(-1)
         beta = film_params[:,self.n_channels:,:].unsqueeze(-1)
@@ -88,43 +78,31 @@ class FiLMLayer(nn.Module):
 class MBSEANet_pqmf(nn.Module):
     def __init__(self, min_dim=8, strides=[1,2,2,2], 
                  in_channels=None, subband_num=27, 
-                 c_in=5, c_out=32, out_bias=True, visualize=False,
+                 c_in=5, c_out=32, out_bias=False, visualize=False,
                  rvq_config=None, use_sfm=False, use_core=False,
                  feature_encoder_config=None,
                  
                  **kwargs):
         super().__init__()
-        
+
         self.visualize = visualize
         self.use_sfm = use_sfm
         self.downsampling_factor = np.prod(strides)
         self.fe_config = feature_encoder_config
         self._initialize_weights()
-
-        ## Load SSL model
-        # from models.feature_encoder_core import ResNet18
-        # self.feature_encoder = ResNet18(in_channels=in_channels,
-        #                                 condition_channels=min_dim*4, # 4 x min_dim
-        #                                 use_condition=use_core,
-        #                                 use_sfm=use_sfm,
-        #                                 sfm_channels=subband_num,
-        #                                 )
         
         from models.feature_encoder_pqmf import SubBandEncoder
         self.latent_dim = self.fe_config['latent_dim'] # 512
         self.feature_encoder = SubBandEncoder(
                         min_dim=self.latent_dim//16, strides=self.fe_config['strides'], 
-                        in_channels=None, 
-                        subband_num=None,
                         c_in=c_out, # N_HF (Cout)
-                        c_out=None, #
                         use_core=self.fe_config['use_core'],
         )
 
         if rvq_config:
             if self.fe_config['latent_dim'] != 0:
-                rvq_config['input_dim']=self.fe_config['latent_dim']
-                
+                rvq_config['input_dim'] = self.fe_config['latent_dim']
+            
             self.rvq = ResidualVectorQuantize(
                 input_dim=rvq_config.get('input_dim', subband_num * 32),
                 n_codebooks=rvq_config.get('n_codebooks', 10),
@@ -133,11 +111,7 @@ class MBSEANet_pqmf(nn.Module):
                 quantizer_dropout=rvq_config.get('quantizer_dropout', 0.5),
             )
 
-        # Feature Extracted SSL Layers
-        self.subband_num = subband_num
-        # self.EmbeddingReduction = FeatureReduction(self.subband_num, D=in_channels*8)
-
-        # Encoder blocks and FiLM layers combined
+        # Encoder blocks and (FiLM layers combined)
         self.encoder_with_film = nn.ModuleList([
             nn.Sequential(
                 EncBlock(min_dim * 2, strides[0]),

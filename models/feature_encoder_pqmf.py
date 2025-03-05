@@ -16,9 +16,10 @@ from models.quantize import ResidualVectorQuantize
 
 class SubBandEncoder(nn.Module):
     def __init__(self, min_dim=32, strides=[2,2,4,4], 
-                 in_channels=None, subband_num=None, 
-                 c_in=27, c_out=None, out_bias=True, visualize=False,
-                 rvq_config=None, use_sfm=False, use_core=False,
+                 c_in=27, 
+                 visualize=False,
+                 use_sfm=False, 
+                 use_core=False,
                  **kwargs):
         super().__init__()
         
@@ -30,15 +31,6 @@ class SubBandEncoder(nn.Module):
 
         self.pqmf_ = PQMF(num_subbands=32, num_taps=481, cutoff_ratio=None)
         self.n_core = 32 - c_in
-
-        if rvq_config:
-            self.rvq = ResidualVectorQuantize(
-                input_dim=rvq_config.get('input_dim', subband_num * 32),
-                n_codebooks=rvq_config.get('n_codebooks', 10),
-                codebook_size=rvq_config.get('codebook_size', 1024),
-                codebook_dim=rvq_config.get('codebook_dim', 8),
-                quantizer_dropout=rvq_config.get('quantizer_dropout', 0.5),
-            )
 
         # feature encoder
         self.c_in = c_in if not use_core else 32
@@ -52,7 +44,7 @@ class SubBandEncoder(nn.Module):
             stride=1,
         )
 
-        # Encoder blocks and FiLM layers combined
+        # Encoder blocks
         self.encoder_with_film = nn.ModuleList([
             nn.Sequential(
                 EncBlock(min_dim * 2, strides[0]),
@@ -67,14 +59,6 @@ class SubBandEncoder(nn.Module):
                 EncBlock(min_dim * 16, strides[3]),
             )
         ])
-
-        # Bottleneck layers
-        self.conv_bottle1 = Conv1d(
-            in_channels=min_dim * 16,
-            out_channels=min_dim * 16 // 4,
-            kernel_size=7,
-            stride=1,
-        )
 
     def _initialize_weights(self):
         # Iterate through all layers and apply Xavier Initialization
@@ -99,8 +83,6 @@ class SubBandEncoder(nn.Module):
         else:
             front_pad = 0
             back_pad = 0
-        # print(pad_len)
-        # print("SIGNAL ADJUST")
         return x, front_pad, back_pad
 
     def _pad_signal_len(self, x, front_pad, back_pad):
@@ -129,32 +111,9 @@ class SubBandEncoder(nn.Module):
         for block in self.encoder_with_film: # [D, T] -> [16D, T/8], T=t/32
             x = block[0](x)  # EncBlock
             skip.append(x)
-
-        ## Bottleneck
-        # h = self.conv_bottle1(x) # [B,16D,T/8] -> [B,4D,T/8], t/256
-        ## Condition Extraction & Quantization 
-        # embedding, codes, latents, commitment_loss, codebook_loss = self.rvq(x, n_quantizers=n_quantizers) #[B,F,T]
-        # return embedding, commitment_loss, codebook_loss
+            
         return x
 
 
 if __name__ == "__main__":
     pass
-    # rvq_config = config['generator']['rvq_config']
-    # rvq_config['input_dim'] = 32 * 16
-
-    # # mindim: 16(256D), 32(512D), 64(1024D)
-    # model = SubBandEncoder(min_dim=32, strides=[2,2,4,4], in_channels=None, 
-    #                     subband_num=config['generator']['subband_num'],
-    #                     c_in=config['generator']['c_in'],
-    #                     c_out=config['generator']['c_out'],
-    #                     rvq_config=config['generator']['rvq_config'],)
-
-    # print(config['generator']['rvq_config'])
-    # subband_sig = torch.randn(7,5,1408)  # [B,N_hf,T] [7,32,1408]
-    # print(subband_sig.shape)
-    # print(config['generator']['c_in'])
-    # print(summary(model, input_data=subband_sig, depth=3))
-
-    # print(1408/128)
-    # print(32*16)
