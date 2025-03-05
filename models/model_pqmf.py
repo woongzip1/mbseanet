@@ -95,7 +95,8 @@ class MBSEANet_pqmf(nn.Module):
         self.latent_dim = self.fe_config['latent_dim'] # 512
         self.feature_encoder = SubBandEncoder(
                         min_dim=self.latent_dim//16, strides=self.fe_config['strides'], 
-                        c_in=c_out, # N_HF (Cout)
+                        c_in=c_out, # N_HF (bands to use),
+                        n_core=c_in, # N_core
                         use_core=self.fe_config['use_core'],
         )
 
