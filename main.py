@@ -84,7 +84,6 @@ def prepare_dataloader(config_path):
         high_index=config['dataset']['high_index'],
         use_sfm=config['dataset']['use_sfm'],
         use_pqmf=config['dataset'].get('use_pqmf_features', 0)
-        # use_pqmf=config['dataset']['use_pqmf_features'],
     )
     
     # Optionally split train data
@@ -114,6 +113,7 @@ def prepare_dataloader(config_path):
     
     return train_dataloader, val_dataloader
 
+
 def main(if_log_step):
     args = parse_args()
     if_log_to_wandb = args.wandb
@@ -124,9 +124,9 @@ def main(if_log_step):
     if if_log_to_wandb: # if log
         wandb.init(project='mbseanet_a', entity='woongzip1', config=config, name=config['run_name'], notes=config['run_name'])
     
-    print(config)
+    print_config(config)
     
-    # Prepare dataloaders
+    # Prepare dataloader
     train_loader, val_loader = prepare_dataloader(args.config)
     
     # Model selection
@@ -162,7 +162,7 @@ def main(if_log_step):
         scheduler_D = lr_scheduler.ExponentialLR(optim_D, gamma=config['optim']['scheduler_gamma'])
 
     import pdb
-    # pdb.set_trace()
+    pdb.set_trace()
 
     # Trainer initialization
     trainer = Trainer(generator, discriminator, train_loader, val_loader, optim_G, optim_D, config, DEVICE, 

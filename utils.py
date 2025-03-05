@@ -255,3 +255,12 @@ def lsd_batch(x_batch, y_batch, fs=16000, frame_size=0.02, frame_shift=0.02, sta
     batch_mean_lsd = np.mean(lsd_values)
     # return log_spec_x, log_spec_y
     return batch_mean_lsd
+
+def print_config(config, indent=0):
+    for k, v in config.items():
+        if isinstance(v, dict):
+            print(" " * indent + f"{k}:")
+            print_config(v, indent + 4)
+        else:
+            print(" " * indent + f"{k}: {v}")
+

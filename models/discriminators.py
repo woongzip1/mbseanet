@@ -2,7 +2,8 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils import weight_norm
+# from torch.nn.utils import weight_norm
+from torch.nn.utils.parametrizations import weight_norm
 import torchaudio
 
 from einops import rearrange

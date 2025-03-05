@@ -1,3 +1,5 @@
+import torch
+from torchinfo import summary
 from models.discriminators import MultiBandSTFTDiscriminator, SSDiscriminatorBlock
 
 def prepare_discriminator(config):
@@ -69,7 +71,32 @@ def prepare_generator(config, MODEL_MAP):
             print(f"    {key}: {value}")
     print(f"  type: {gen_type}")
     generator = ModelClass(**model_params)
+
     print(f"Generator Parameters: {sum(p.numel() for p in generator.parameters() if p.requires_grad) / 1_000_000:.2f}M")
     print("########################################")
     
+    ## summary
+    lr = torch.randn(1,config['generator']['c_in'],20480//32) # [B,C,T/32]
+    hr = torch.randn(1,1,20480) # [B,1,T]
+    stft = torch.randn(1,1,32*config['generator']['subband_num'],20480//2048) # [B,1,F,T/2048]
+    cond = hr if config['dataset'].get('use_pqmf_features',0) else stft
+    summary(generator, input_data=[lr, cond], depth=1, col_names=["input_size", "output_size", "num_params", 
+                                                                #   "kernel_size"
+                                                                  ],)
+
     return generator
+
+def main():
+    from utils import print_config
+    from main import load_config, prepare_dataloader
+    from main import MODEL_MAP
+    
+    config_path = "configs/exp8.yaml" # 8, 21
+    config = load_config(config_path)
+    print_config(config)
+    disc = prepare_discriminator(config)
+    gen = prepare_generator(config, MODEL_MAP) 
+    
+if __name__ == "__main__":
+    ### python -m models.prepare_models
+    main()

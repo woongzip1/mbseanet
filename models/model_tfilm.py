@@ -275,7 +275,7 @@ class MBSEANet_film(nn.Module):
         
         return padded_x
     
-    def forward(self, x, cond, sfm_embedding, n_quantizers=None):
+    def forward(self, x, cond, sfm_embedding=None, n_quantizers=None):
         # x, prev, post = self._crop_signal_len(x, crop_len=8)
         x, front_pad, back_pad = self._adjust_signal_len(x)
         

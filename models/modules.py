@@ -2,6 +2,8 @@ import torch as th
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F
+# from torch.nn.utils import weight_norm
+from torch.nn.utils.parametrizations import weight_norm
 
 class EncBlock(nn.Module):
     def __init__(self, out_channels, stride):
@@ -100,7 +102,7 @@ class Conv1d(nn.Module):
             groups = groups,
             bias=bias,
         )
-        self.conv = nn.utils.weight_norm(self.conv)
+        self.conv = weight_norm(self.conv)
         self.pad = Pad(((kernel_size-1)*dilation, 0)) 
         self.activation = nn.ELU()
 
@@ -121,7 +123,7 @@ class ConvTransposed1d(nn.Module):
             dilation = dilation,
             bias=bias,
         )
-        self.conv = nn.utils.weight_norm(self.conv)
+        self.conv = weight_norm(self.conv)
         self.pad = dilation * (kernel_size - 1) - dilation * (stride - 1)
         self.activation = nn.ELU()
         
