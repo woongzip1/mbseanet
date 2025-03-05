@@ -71,8 +71,9 @@ def prepare_dataloader(config_path):
         start_index=config['dataset']['start_index'], 
         high_index=config['dataset']['high_index'],
         use_sfm=config['dataset']['use_sfm'],
-        use_pqmf=config['dataset']['use_pqmf_features'],
+        use_pqmf=config['dataset'].get('use_pqmf_features', 0)
     )
+    
 
     val_dataset = CustomDataset(
         path_dir_nb=config['dataset']['nb_test'], 
@@ -82,7 +83,8 @@ def prepare_dataloader(config_path):
         start_index=config['dataset']['start_index'], 
         high_index=config['dataset']['high_index'],
         use_sfm=config['dataset']['use_sfm'],
-        use_pqmf=config['dataset']['use_pqmf_features'],
+        use_pqmf=config['dataset'].get('use_pqmf_features', 0)
+        # use_pqmf=config['dataset']['use_pqmf_features'],
     )
     
     # Optionally split train data
