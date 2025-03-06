@@ -133,9 +133,12 @@ def synthesize_and_draw_debug(
     win_len: int = 1024,
     hop_len: int = 256,
     save_path: str = "debug_spec",
+    use_core = False,
+    figsize = (8,6),
 ):
     """
     특정 subband만 0이 아닌 상태로 합성하고, 스펙트로그램을 그려 저장하는 디버그 함수.
+    
     synthesize_and_draw_debug(
                 x_subbands=x,
                 x_full=temp,
@@ -145,12 +148,13 @@ def synthesize_and_draw_debug(
                 n_fft=2048,
                 win_len=1024,
                 hop_len=256,
-                save_path="debug_hf_spec"
+                save_path="debug_hf_spec",
+                use_core=self.use_core,
                 )
     """
     from utils import draw_spec
     B, used_subbands, L = x_subbands.shape
-    Ncore = 5 # 0 if use core
+    Ncore = 0 if use_core else 5 # 0 if use core
     
     # 1) 나머지 서브밴드 채널은 0으로 채운다
     #    여기서 PQMF 전체 채널 수가 32라는 전제
@@ -173,8 +177,8 @@ def synthesize_and_draw_debug(
     #    이미 정의하신 draw_spec 함수를 쓴다고 가정:
     draw_spec(
         x=x_hat_np,
-        figsize=(10, 6),
-        title='Debug PQMF partial subbands',
+        figsize=figsize,
+        title='Extracted Bands',
         n_fft=n_fft,
         win_len=win_len,
         hop_len=hop_len,
@@ -182,7 +186,7 @@ def synthesize_and_draw_debug(
         # cmap='inferno',  # 원하면 지정
         vmin=-50,
         vmax=40,
-        use_colorbar=True,
+        use_colorbar=False,
         ylim=None,
         return_fig=False,
         save_fig=True,            # 저장할 것이므로 True
@@ -190,8 +194,8 @@ def synthesize_and_draw_debug(
     )
     draw_spec(
         x=x_full.squeeze().detach().cpu().numpy(),
-        figsize=(10, 6),
-        title='Debug PQMF partial subbands',
+        figsize=figsize,
+        title='Full Band',
         n_fft=n_fft,
         win_len=win_len,
         hop_len=hop_len,
@@ -199,15 +203,13 @@ def synthesize_and_draw_debug(
         # cmap='inferno',  # 원하면 지정
         vmin=-50,
         vmax=40,
-        use_colorbar=True,
+        use_colorbar=False,
         ylim=None,
         return_fig=False,
         save_fig=True,            # 저장할 것이므로 True
         save_path=f"{save_path}_gt"       # 'debug_spec.png' 같은 경로
     )
     print(f"[DEBUG] spec saved to {save_path}")
-
-
 
 def main():
     from models.feature_encoder_pqmf import SubBandEncoder
