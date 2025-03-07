@@ -9,8 +9,8 @@ from scipy.signal import stft
 def count_model_params(model):
     print(f"{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1_000_000:.2f}M")
     
-def plot_signals(x, x_hat, range=[10000,15000],FIGSIZE=(10,2), diff=0.01):
-    plt.figure(figsize=FIGSIZE)
+def plot_signals(x, x_hat, range=[10000,15000],figsize=(10,2), diff=0.01):
+    plt.figure(figsize=figsize)
     plt.plot(x, label='gt')
     plt.plot(x_hat+diff, label='s')
     plt.xlim(range)
@@ -20,14 +20,15 @@ def plot_signals(x, x_hat, range=[10000,15000],FIGSIZE=(10,2), diff=0.01):
 def draw_spec(x,
               figsize=(10, 6), title='', n_fft=2048,
               win_len=1024, hop_len=256, sr=16000, cmap='inferno',
-              vmin=-50, vmax=40, use_colorbar=True,
+              window='hann',
+              vmin=-50, vmax=40, use_colorbar=False,
               ylim=None,
               title_fontsize=10,
               label_fontsize=8,
                 return_fig=False,
                 save_fig=False, save_path=None):
     fig = plt.figure(figsize=figsize)
-    stft = librosa.stft(x, n_fft=n_fft, hop_length=hop_len, win_length=win_len)
+    stft = librosa.stft(x, n_fft=n_fft, hop_length=hop_len, win_length=win_len, window=window)
     stft = 20 * np.log10(np.clip(np.abs(stft), a_min=1e-8, a_max=None))
 
     r=5

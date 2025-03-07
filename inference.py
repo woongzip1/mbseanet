@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, random_split
 import torch.optim.lr_scheduler as lr_scheduler
 import soundfile as sf
 
-from Projects.MBSEANet.__trainer import Trainer 
+from Projects.MBSEANet.trainer import Trainer 
 # from MelGAN import Discriminator_MelGAN
 # from MBSTFTD import MultiBandSTFTDiscriminator
 

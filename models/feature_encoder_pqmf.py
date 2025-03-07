@@ -104,7 +104,7 @@ class SubBandEncoder(nn.Module):
         else:
             ## use core
             x = x[:, :self.c_in, :]
-        
+                
         # make sure input is multiple of downsampling
         # x, front_pad, back_pad = self._adjust_signal_len(x)
 

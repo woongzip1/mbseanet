@@ -4,6 +4,7 @@ __*.ipynb
 ckpts/
 __pycache__/
 wandb/
+notebooks/
 
 debug/
 
