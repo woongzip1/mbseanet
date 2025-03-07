@@ -17,6 +17,8 @@ class LossCalculator:
         self.ms_mel_loss_config = config['loss']['ms_mel_loss_config']
         
         self.lambda_subband_loss = config['loss']['lambda_subband_loss']
+        self.lambda_fullband_loss = config['loss']['lambda_fullband_loss']
+        
         self.num_taps = 481
         
     def _save_figures(self, hr, x_hat_full):
@@ -46,7 +48,10 @@ class LossCalculator:
         g_loss_dict, g_loss_report = self.discriminator.g_loss(hr, x_hat_full, adv_loss_type='hinge')
         
         # mel loss
-        ms_mel_loss_value = ms_mel_loss(hr, x_hat_full, **self.ms_mel_loss_config) # take care of tensor shape
+        if self.lambda_mel_loss:
+            ms_mel_loss_value = ms_mel_loss(hr, x_hat_full, **self.ms_mel_loss_config) # take care of tensor shape
+        else:
+            ms_mel_loss_value = 0
 
         # subband loss
         if hf_estimate is not None:
@@ -54,6 +59,14 @@ class LossCalculator:
         else:
             subband_loss_value = 0
         
+        # full band stft loss
+        if self.lambda_fullband_loss:
+            fullband_loss_value,_,_ = ms_stft_loss(hr, x_hat_full, n_fft_list=[512, 1024, 2048], freq_range=[0.15,0.45])
+        else:
+            fullband_loss_value = 0
+        
+        # import pdb
+        # pdb.set_trace()
         # overall loss (for logging)
         loss_G = (
             self.lambda_adv_loss * g_loss_dict.get('adv_g', 0) +
@@ -61,9 +74,10 @@ class LossCalculator:
             self.lambda_mel_loss * ms_mel_loss_value +
             self.lambda_commitment_loss * commitment_loss +
             self.lambda_codebook_loss * codebook_loss +
-            self.lambda_subband_loss * subband_loss_value
+            self.lambda_subband_loss * subband_loss_value +
+            self.lambda_fullband_loss * fullband_loss_value
         )
-        return loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value
+        return loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value, fullband_loss_value
 
     def compute_discriminator_loss(self, hr, x_hat_full):
         d_loss_dict, d_loss_report = self.discriminator.d_loss(hr, x_hat_full, adv_loss_type='hinge')
@@ -77,7 +91,7 @@ def compute_subband_loss(hf_estimate: torch.Tensor, target_subbands: torch.Tenso
     subband_loss, sc_loss, mag_loss = ms_stft_loss(x=target_subbands, x_hat=hf_estimate)
     return subband_loss
 
-def ms_stft_loss(x, x_hat, n_fft_list=[16, 32, 64], hop_ratio=0.25, eps=1e-5):
+def ms_stft_loss(x, x_hat, n_fft_list=[16, 32, 64], hop_ratio=0.25, eps=1e-5, freq_range=None):
     """
     reference: https://github.com/AppleHolic/multiband_melgan/
     
@@ -108,13 +122,20 @@ def ms_stft_loss(x, x_hat, n_fft_list=[16, 32, 64], hop_ratio=0.25, eps=1e-5):
         C = 1
         
     for n_fft in n_fft_list:
-        sig_to_spg = T.Spectrogram(n_fft=n_fft, win_length=n_fft, hop_length=int(n_fft * hop_ratio), 
+        sig_to_spg = T.Spectrogram(n_fft=n_fft, win_length=n_fft, hop_length=int(n_fft * hop_ratio), # magnitude
                                    power=1.0, normalized=False, center=True).to(x.device)
 
         # Compute spectrograms for x and x_hat
         spg_x = sig_to_spg(x)  # [B, F, T']
         spg_x_hat = sig_to_spg(x_hat)  # [B, F, T']
         # print(spg_x.shape)
+        
+        # 
+        if freq_range is not None:
+            f_low = math.ceil(n_fft//2 * freq_range[0])
+            f_high =  math.ceil(n_fft//2 * freq_range[1])
+            spg_x = spg_x[:,f_low:f_high,:]
+            spg_x_hat = spg_x_hat[:,f_low:f_high,:]
         
         # SC, Mag loss
         sc_loss_ = ((spg_x - spg_x_hat).norm(p='fro', dim=(1, 2)) / spg_x.norm(p='fro', dim=(1, 2)) + eps).mean()

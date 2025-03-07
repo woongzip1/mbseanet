@@ -35,6 +35,7 @@ class Trainer:
         self.lambda_mel_loss = config['loss']['lambda_mel_loss']
         self.lambda_fm_loss = config['loss']['lambda_fm_loss']
         self.lambda_adv_loss = config['loss']['lambda_adv_loss']
+        
 
         self.use_sfm = config['dataset']['use_sfm']
 
@@ -111,7 +112,7 @@ class Trainer:
             hf_for_save = hf_estimate
             hf_estimate = None 
             
-        loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(
+        loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value, fullband_loss_value = self.loss_calculator.compute_generator_loss(
                                                                                         hr_target, x_hat_full, commitment_loss, codebook_loss,
                                                                                         hf_estimate=hf_estimate, target_subbands=target_subbands)  
         
@@ -153,7 +154,7 @@ class Trainer:
             
         step_result = {
             'loss_G': loss_G.item(),
-            'ms_mel_loss': ms_mel_loss_value.item(),
+            'ms_mel_loss': ms_mel_loss_value.item() if ms_mel_loss_value else 0,
             # 'loss_D': loss_D.item(),
             **{f'G_{k}': v.item() if isinstance(v, torch.Tensor) else v for k, v in g_loss_dict.items()},
             **{f'D_{k}': v.item() if isinstance(v, torch.Tensor) else v for k, v in d_loss_dict.items()},
@@ -163,6 +164,8 @@ class Trainer:
             'codebook_loss': codebook_loss.item() if codebook_loss else 0,
             # subband loss
             'subband_loss': subband_loss_value.item() if subband_loss_value else 0,
+            'fullband_loss': fullband_loss_value.item() if fullband_loss_value else 0,
+            
             }
         # import pdb
         # pdb.set_trace()
@@ -174,7 +177,7 @@ class Trainer:
     def validate(self, step=None):
         self.generator.eval()
         self.discriminator.eval()
-        result = {key: 0 for key in ['adv_g', 'fm', 'loss_D', 'ms_mel_loss', 'commitment_loss', 'codebook_loss', 'LSD_L', 'LSD_H', 'subband_loss']}
+        result = {key: 0 for key in ['adv_g', 'fm', 'loss_D', 'ms_mel_loss', 'commitment_loss', 'codebook_loss', 'LSD_L', 'LSD_H', 'subband_loss', 'fullband_loss']}
         
         with torch.no_grad():
             for i, (hr, lr, cond, _, sfm) in enumerate(tqdm(self.val_loader, desc='Validation')):
@@ -191,7 +194,7 @@ class Trainer:
                 # synthesis
                 hr_target, x_hat_full = synthesize_subbands(hf_estimate, target_subbands, input_subbands, self.pqmf_fb, hr.shape[-1])
         
-                loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value = self.loss_calculator.compute_generator_loss(
+                loss_G, ms_mel_loss_value, g_loss_dict, g_loss_report, subband_loss_value, fullband_loss_value = self.loss_calculator.compute_generator_loss(
                                                                                                 hr_target, x_hat_full, commitment_loss, codebook_loss,
                                                                                                 hf_estimate=hf_estimate, target_subbands=target_subbands)  
                 loss_D, d_loss_dict, d_loss_report = self.loss_calculator.compute_discriminator_loss(hr_target, x_hat_full)
@@ -207,12 +210,12 @@ class Trainer:
                 # Aggregate results
                 result['adv_g'] += g_loss_dict.get('adv_g', 0).item()
                 result['fm'] += g_loss_dict.get('fm', 0).item()
-                result['ms_mel_loss'] += ms_mel_loss_value.item()
+                result['ms_mel_loss'] += ms_mel_loss_value.item() if ms_mel_loss_value else 0
                 result['loss_D'] += loss_D.item()
                 result['commitment_loss'] += commitment_loss.item() if commitment_loss else 0
                 result['codebook_loss'] += codebook_loss.item() if codebook_loss else 0
                 result['subband_loss'] += subband_loss_value.item() if subband_loss_value else 0
-
+                result['fullband_loss'] += fullband_loss_value.item() if fullband_loss_value else 0    
                 # import pdb
                 # pdb.set_trace()
                 
